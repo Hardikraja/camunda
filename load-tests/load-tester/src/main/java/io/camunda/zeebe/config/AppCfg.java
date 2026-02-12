@@ -19,6 +19,7 @@ public class AppCfg {
   private int monitoringPort;
   private StarterCfg starter;
   private WorkerCfg worker;
+  private OptimizeCfg optimize;
   private AuthCfg auth;
   private boolean monitorDataAvailability = true;
   private Duration monitorDataAvailabilityInterval = Duration.ofMillis(250);
@@ -64,6 +65,14 @@ public class AppCfg {
 
   public void setWorker(final WorkerCfg worker) {
     this.worker = worker;
+  }
+
+  public OptimizeCfg getOptimize() {
+    return optimize;
+  }
+
+  public void setOptimize(final OptimizeCfg optimize) {
+    this.optimize = optimize;
   }
 
   public int getMonitoringPort() {
