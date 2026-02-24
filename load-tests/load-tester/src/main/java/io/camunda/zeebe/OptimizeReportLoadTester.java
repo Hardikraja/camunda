@@ -59,7 +59,7 @@ public class OptimizeReportLoadTester {
     this.clientSecret = clientSecret;
     httpClient =
         HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(30))
+            .connectTimeout(Duration.ofSeconds(120))
             .followRedirects(HttpClient.Redirect.NEVER)
             .build();
   }
@@ -399,6 +399,7 @@ public class OptimizeReportLoadTester {
 
     transformViewSection(dataObjectNode);
     transformGroupBySection(dataObjectNode);
+    transformSortingSection(dataObjectNode);
   }
 
   /**
@@ -451,6 +452,36 @@ public class OptimizeReportLoadTester {
   }
 
   /**
+   * Transforms the sorting section by setting the "by" value to "startDate".
+   *
+   * @param dataObjectNode the data object node containing the configuration section
+   */
+  private void transformSortingSection(final ObjectNode dataObjectNode) {
+    if (!dataObjectNode.has("configuration")) {
+      return;
+    }
+
+    final JsonNode configurationNode = dataObjectNode.get("configuration");
+    if (!(configurationNode instanceof ObjectNode)) {
+      return;
+    }
+
+    final ObjectNode configurationObjectNode = (ObjectNode) configurationNode;
+
+    if (!configurationObjectNode.has("sorting")) {
+      return;
+    }
+
+    final JsonNode sortingNode = configurationObjectNode.get("sorting");
+    if (!(sortingNode instanceof ObjectNode)) {
+      return;
+    }
+
+    final ObjectNode sortingObjectNode = (ObjectNode) sortingNode;
+    sortingObjectNode.put("by", "startDate");
+  }
+
+  /**
    * Evaluates the management dashboard and returns the response time in milliseconds.
    *
    * @return the evaluation result containing response time and status
@@ -460,6 +491,68 @@ public class OptimizeReportLoadTester {
     ensureValidToken();
 
     final String url = String.format("%s/api/dashboard/management", optimizeBaseUrl);
+    LOG.info("Evaluating management dashboard at URL: {}", url);
+
+    final long startTime = System.currentTimeMillis();
+
+    final HttpRequest request =
+        HttpRequest.newBuilder()
+            .uri(URI.create(url))
+            .header("Cookie", "X-Optimize-Authorization_0=" + accessToken)
+            .header("Content-Type", "application/json")
+            .header("X-Optimize-Client-Timezone", "UTC")
+            .header("X-Optimize-Client-Locale", "en")
+            .timeout(Duration.ofSeconds(120))
+            .GET()
+            .build();
+
+    try {
+      LOG.debug("Sending management dashboard request to {}", url);
+      final HttpResponse<String> response =
+          httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+      final long responseTime = System.currentTimeMillis() - startTime;
+      LOG.info(
+          "Management dashboard response received - Status: {}, Time: {}ms",
+          response.statusCode(),
+          responseTime);
+
+      if (response.statusCode() != 200) {
+        LOG.warn(
+            "Management dashboard returned non-200 status: {}, Body: {}",
+            response.statusCode(),
+            response.body());
+      }
+
+      return new DashboardEvaluationResult(
+          "management", response.statusCode(), responseTime, response.body());
+    } catch (final java.net.ConnectException e) {
+      final long responseTime = System.currentTimeMillis() - startTime;
+      LOG.error(
+          "Connection failed to management dashboard at {} after {}ms. "
+              + "Verify that Optimize is running and accessible at the configured URL. "
+              + "Cause: {}",
+          url,
+          responseTime,
+          e.getMessage(),
+          e);
+      throw e;
+    }
+  }
+
+  /**
+   * Fetches the instant benchmark dashboard for a specific process definition key.
+   *
+   * @param processDefinitionKey the process definition key
+   * @return the evaluation result containing response time and status
+   * @throws Exception if the request fails
+   */
+  public DashboardEvaluationResult evaluateInstantBenchmarkDashboard(
+      final String processDefinitionKey) throws Exception {
+    ensureValidToken();
+
+    final String url =
+        String.format("%s/api/dashboard/instant/%s", optimizeBaseUrl, processDefinitionKey);
 
     final long startTime = System.currentTimeMillis();
 
@@ -479,7 +572,7 @@ public class OptimizeReportLoadTester {
     final long responseTime = System.currentTimeMillis() - startTime;
 
     return new DashboardEvaluationResult(
-        "management", response.statusCode(), responseTime, response.body());
+        "instant_" + processDefinitionKey, response.statusCode(), responseTime, response.body());
   }
 
   /**
@@ -487,7 +580,9 @@ public class OptimizeReportLoadTester {
    *
    * @return the evaluation result containing response time and status
    * @throws Exception if the request fails
+   * @deprecated Use evaluateInstantBenchmarkDashboard(String processDefinitionKey) instead
    */
+  @Deprecated
   public DashboardEvaluationResult evaluateInstantBenchmarkDashboard() throws Exception {
     ensureValidToken();
 
@@ -590,12 +685,18 @@ public class OptimizeReportLoadTester {
    * Evaluates the instant benchmark dashboard, then evaluates all reports and finally calls
    * detailed evaluate API for each report.
    *
+   * @param processDefinitionKey the process definition key to use for the instant benchmark
    * @return a result containing dashboard metrics, report evaluations, and detailed evaluations
    * @throws Exception if any request fails
    */
-  public InstantBenchmarkResult evaluateInstantBenchmark() throws Exception {
-    // Step 1: Fetch instant benchmark dashboard
-    final DashboardEvaluationResult dashboardResult = evaluateInstantBenchmarkDashboard();
+  public InstantBenchmarkResult evaluateInstantBenchmark(final String processDefinitionKey)
+      throws Exception {
+    // Step 0: Use the provided process definition key
+    LOG.info("Using process definition key: {}", processDefinitionKey);
+
+    // Step 1: Fetch instant benchmark dashboard for the process definition
+    final DashboardEvaluationResult dashboardResult =
+        evaluateInstantBenchmarkDashboard(processDefinitionKey);
 
     if (!dashboardResult.isSuccess()) {
       throw new RuntimeException(
@@ -664,49 +765,6 @@ public class OptimizeReportLoadTester {
 
     return new InstantBenchmarkResult(
         dashboardResult, reportEvaluationResults, detailedEvaluationResults);
-  }
-
-  /** Example usage. */
-  public static void main(final String[] args) {
-    try {
-      final OptimizeReportLoadTester tester =
-          new OptimizeReportLoadTester(
-              "http://localhost:8083",
-              "http://localhost:18080",
-              "camunda-platform",
-              "optimize",
-              "demo",
-              "demo",
-              "demo-client-secret");
-
-      tester.authenticateWithAuthorizationCodeFlow();
-
-      // Evaluate dashboard and all its reports
-      final DashboardWithReportsResult result = tester.evaluateDashboardWithReports();
-
-      System.out.println(
-          "Dashboard load time: " + result.getDashboardResult().getResponseTimeMs() + "ms");
-      for (final ReportEvaluationResult report : result.getReportResults()) {
-        System.out.println(
-            "Report " + report.getReportId() + ": " + report.getResponseTimeMs() + "ms");
-      }
-      System.out.println("Total time: " + result.getTotalResponseTimeMs() + "ms");
-
-      final InstantBenchmarkResult instantBenchmarkResult = tester.evaluateInstantBenchmark();
-      System.out.println(
-          "Instant benchmark dashboard load time: "
-              + instantBenchmarkResult.getDashboardResult().getResponseTimeMs()
-              + "ms");
-      for (final ReportEvaluationResult report :
-          instantBenchmarkResult.getReportEvaluationResults()) {
-        System.out.println(
-            "Report " + report.getReportId() + ": " + report.getResponseTimeMs() + "ms");
-      }
-      System.out.println("Total time: " + instantBenchmarkResult.getTotalResponseTimeMs() + "ms");
-
-    } catch (final Exception e) {
-      LOG.error("Load test failed", e);
-    }
   }
 
   /** Result object containing dashboard evaluation metrics. */
