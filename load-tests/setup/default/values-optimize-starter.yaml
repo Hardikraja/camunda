@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: optimize-load-tester
-  namespace: namespace-bh
+  namespace: __NAMESPACE__
   labels:
     app: optimize-load-tester
     app.kubernetes.io/component: zeebe-client
@@ -19,12 +19,12 @@ spec:
     spec:
       containers:
         - name: optimize
-          image: gcr.io/zeebe-io/optimize-load-tester:namespace-bh-2f0a1af
+          image: gcr.io/zeebe-io/optimize-load-tester:__NAMESPACE__
           env:
             - name: OPTIMIZE_BASE_URL
-              value: "http://namespace-bh"
+              value: "http://__NAMESPACE__-optimize"
             - name: OPTIMIZE_KEYCLOAK_URL
-              value: "http://namespace-bh-keycloak"
+              value: "http://__NAMESPACE__-keycloak"
             - name: OPTIMIZE_REALM
               value: "camunda-platform"
             - name: OPTIMIZE_CLIENT_ID

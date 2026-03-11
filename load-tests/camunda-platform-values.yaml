@@ -44,6 +44,7 @@ global:
       enabled: true
       optimize:
         clientId: optimize
+        redirectUrl: "http://__NAMESPACE__-optimize"
         secret:
           existingSecret: camunda-credentials
           existingSecretKey: identity-optimize-client-token
@@ -250,6 +251,8 @@ orchestration:
     retention:
       ## @param core.history.retention.enabled if true, the ILM Policy is created and applied to the index templates.
       enabled: true
+      ## @param core.history.retention.minimumAge defines how old the data must be, before the data is deleted as a duration.
+      minimumAge: 1d
   # @param core.env can be used to set extra environment variables in each broker container
   env:
     # Enable JSON logging for google cloud stackdriver
@@ -296,7 +299,7 @@ elasticsearch:
     heapSize: 3g
     persistence:
       ## @param elasticsearch.master.persistence.size
-      size: 512Gi
+      size: 128Gi
       storageClass: "ssd"
       accessModes: ["ReadWriteOnce"]
     resources:

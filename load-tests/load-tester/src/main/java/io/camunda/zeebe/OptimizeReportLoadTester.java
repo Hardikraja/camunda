@@ -331,7 +331,7 @@ public class OptimizeReportLoadTester {
     // properties to rawData
     final String transformedBody = transformRequestBodyForDetailedEvaluate(requestBody);
 
-    final String url = String.format("%s/api/report/evaluate?=null", optimizeBaseUrl);
+    final String url = String.format("%s/api/report/evaluate", optimizeBaseUrl);
 
     final long startTime = System.currentTimeMillis();
 

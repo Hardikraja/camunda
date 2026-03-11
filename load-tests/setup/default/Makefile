@@ -4,6 +4,8 @@ helm_chart ?= camunda-platform-8.10
 enable_optimize ?= __ENABLE_OPTIMIZE__
 curl_image ?= curlimages/curl:7.87.0
 camunda_management_url ?= http://camunda:9600
+optimize_process_definition_key ?= benchmark
+starter_deployment_name ?= starter
 prometheus_elasticsearch_exporter_chart_version ?= 7.2.1
 # Optional: additional Helm configuration for the Camunda Platform release.
 # Use this to pass extra `--set`/`-f` flags, for example:
@@ -13,7 +15,7 @@ additional_platform_configuration ?=
 # Optional: additional Helm configuration for the load test release.
 # Use this to pass extra `--set`/`-f` flags when installing/upgrading the load tests.
 # See the load test README for example values and guidance.
-additional_load_test_configuration ?= --set global.image.repository=registry.camunda.cloud/team-zeebe --set global.image.pullSecrets[0].name=harbor-registry
+additional_load_test_configuration ?= --set global.image.repository=registry.camunda.cloud/team-zeebe --set global.image.pullSecrets[0].name=harbor-registry --set global.image.tag=pg-report-es-optimize-build
 
 # Construct platform values files based on configuration
 platform_values := -f camunda-platform-values.yaml
@@ -42,10 +44,10 @@ platform_values_stable := $(platform_values) -f values-stable.yaml
 all: install
 
 .PHONY: install
-install: install-storage create-credentials install-platform install-load-test install-elasticsearch-exporter
+install: install-storage create-credentials install-platform install-load-test install-elasticsearch-exporter install-es-metrics-collector
 
 .PHONY: install-stable
-install-stable: install-storage create-credentials install-platform-stable install-load-test install-elasticsearch-exporter
+install-stable: install-storage create-credentials install-platform-stable install-load-test install-elasticsearch-exporter install-es-metrics-collector
 
 # Install PostgreSQL database if secondary_storage is postgresql, or OpenSearch if secondary_storage is opensearch
 .PHONY: install-storage
@@ -135,6 +137,35 @@ setup-leader-balancer:
 		echo "Leader balancer cronjob already exists"; \
 	fi
 
+# Install ES metrics collector CronJob and PVC
+.PHONY: install-es-metrics-collector
+install-es-metrics-collector:
+ifeq ($(secondary_storage),elasticsearch)
+	@echo "Installing ES metrics collector CronJob for namespace $(namespace)..."
+	kubectl apply -n $(namespace) -f es-metrics-cronjob.yaml
+else
+	@echo "Skipping ES metrics collector (secondary_storage=$(secondary_storage))"
+endif
+
+# Patch the existing starter deployment with Optimize env vars
+# Usage: make enable-optimize
+#   or:  make enable-optimize optimize_process_definition_key=myProcess
+.PHONY: enable-optimize
+enable-optimize:
+	@echo "Patching $(starter_deployment_name) deployment with Optimize config in namespace $(namespace)..."
+	kubectl patch deployment $(starter_deployment_name) -n $(namespace) --type='json' -p='[ \
+	  {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"OPTIMIZE_ENABLE","value":"true"}}, \
+	  {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"OPTIMIZE_BASE_URL","value":"http://$(namespace)-optimize"}}, \
+	  {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"OPTIMIZE_KEYCLOAK_URL","value":"http://$(namespace)-keycloak"}}, \
+	  {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"OPTIMIZE_REALM","value":"camunda-platform"}}, \
+	  {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"OPTIMIZE_CLIENT_ID","value":"optimize"}}, \
+	  {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"OPTIMIZE_CLIENT_SECRET","valueFrom":{"secretKeyRef":{"name":"camunda-credentials","key":"identity-optimize-client-token"}}}}, \
+	  {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"OPTIMIZE_USERNAME","value":"demo"}}, \
+	  {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"OPTIMIZE_PASSWORD","valueFrom":{"secretKeyRef":{"name":"camunda-credentials","key":"identity-firstuser-password"}}}}, \
+	  {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"OPTIMIZE_PROCESS_DEFINITION_KEY","value":"$(optimize_process_definition_key)"}} \
+	]'
+	@echo "Optimize enabled on $(starter_deployment_name). Pod will restart automatically."
+
 # Generates templates from the Camunda Platform helm chart
 .PHONY: template
 template:
@@ -157,6 +188,8 @@ clean:
 	-kubectl delete -n $(namespace) pvc -l app.kubernetes.io/instance=$(namespace)
 	-kubectl delete -n $(namespace) pvc -l app=elasticsearch-master
 	-kubectl delete -n $(namespace) cronjob leader-balancer
+	-kubectl delete -n $(namespace) cronjob es-metrics-collector
+	-kubectl delete -n $(namespace) pvc es-metrics-data
 ifeq ($(secondary_storage),postgresql)
 	@echo "Cleaning up PostgreSQL database for namespace $(namespace)..."
 	-helm --namespace $(namespace) uninstall postgres
