@@ -168,7 +168,8 @@ abstract class App implements Runnable {
             .restAddress(URI.create(config.getBrokerRestUrl()))
             .preferRestOverGrpc(config.isPreferRest())
             .withProperties(System.getProperties())
-            .withInterceptors(monitoringInterceptor);
+            .withInterceptors(monitoringInterceptor)
+            .useClientSideLoadBalancing(config.isClientSideLoadBalancing());
 
     final var auth = config.getAuth();
     final var credentialsProvider =

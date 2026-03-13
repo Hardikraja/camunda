@@ -21,6 +21,7 @@ public class AppCfg {
   private boolean monitorDataAvailability = true;
   private Duration monitorDataAvailabilityInterval = Duration.ofMillis(250);
   private boolean performReadBenchmarks = false;
+  private boolean clientSideLoadBalancing = false;
 
   public String getBrokerUrl() {
     return brokerUrl;
@@ -100,5 +101,13 @@ public class AppCfg {
 
   public void setPerformReadBenchmarks(final boolean performReadBenchmarks) {
     this.performReadBenchmarks = performReadBenchmarks;
+  }
+
+  public boolean isClientSideLoadBalancing() {
+    return clientSideLoadBalancing;
+  }
+
+  public void setClientSideLoadBalancing(final boolean clientSideLoadBalancing) {
+    this.clientSideLoadBalancing = clientSideLoadBalancing;
   }
 }
