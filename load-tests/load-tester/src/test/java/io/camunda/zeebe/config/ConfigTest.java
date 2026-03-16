@@ -28,7 +28,7 @@ public class ConfigTest {
     assertThat(appCfg.isMonitorDataAvailability()).isTrue();
     assertThat(appCfg.getMonitorDataAvailabilityInterval()).hasMillis(250);
     assertThat(appCfg.isPerformReadBenchmarks()).isFalse();
-    assertThat(appCfg.isClientSideLoadBalancing()).isFalse();
+    assertThat(appCfg.isClientSideLoadBalancing()).isTrue();
 
     // authentication
     final var authCfg = appCfg.getAuth();
@@ -85,7 +85,7 @@ public class ConfigTest {
     assertThat(appCfg.isMonitorDataAvailability()).isFalse();
     assertThat(appCfg.getMonitorDataAvailabilityInterval()).hasMillis(50);
     assertThat(appCfg.isPerformReadBenchmarks()).isTrue();
-    assertThat(appCfg.isClientSideLoadBalancing()).isTrue();
+    assertThat(appCfg.isClientSideLoadBalancing()).isFalse();
 
     // authentication
     final var authCfg = appCfg.getAuth();
