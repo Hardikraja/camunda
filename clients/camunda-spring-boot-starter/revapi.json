@@ -558,6 +558,34 @@
           "code": "java.method.removed",
           "old": "method io.camunda.client.spring.annotation.processor.DeploymentAnnotationProcessor io.camunda.client.spring.configuration.AnnotationProcessorConfiguration::deploymentPostProcessor(org.springframework.context.ApplicationEventPublisher)",
           "justification": "Internal refactor; compatibility impact accepted for this release."
+        },
+        {
+          "ignore": true,
+          "code": "java.method.returnTypeChanged",
+          "old": "method void io.camunda.client.jobhandling.CommandExceptionHandlingStrategy::handleCommandError(io.camunda.client.jobhandling.CommandWrapper, java.lang.Throwable)",
+          "new": "method io.camunda.client.jobhandling.CommandOutcome io.camunda.client.jobhandling.CommandExceptionHandlingStrategy::handleCommandError(io.camunda.client.jobhandling.CommandWrapper, java.lang.Throwable)",
+          "justification": "CommandExceptionHandlingStrategy now returns CommandOutcome instead of void; breaking for custom implementations but low risk (1 known impl, internal, @ConditionalOnMissingBean)."
+        },
+        {
+          "ignore": true,
+          "code": "java.method.returnTypeChanged",
+          "old": "method void io.camunda.client.jobhandling.DefaultCommandExceptionHandlingStrategy::handleCommandError(io.camunda.client.jobhandling.CommandWrapper, java.lang.Throwable)",
+          "new": "method io.camunda.client.jobhandling.CommandOutcome io.camunda.client.jobhandling.DefaultCommandExceptionHandlingStrategy::handleCommandError(io.camunda.client.jobhandling.CommandWrapper, java.lang.Throwable)",
+          "justification": "DefaultCommandExceptionHandlingStrategy now returns CommandOutcome instead of void; follows interface change."
+        },
+        {
+          "ignore": true,
+          "code": "java.method.returnTypeChanged",
+          "old": "method void io.camunda.client.jobhandling.CommandWrapper::executeAsync()",
+          "new": "method java.util.concurrent.CompletableFuture<io.camunda.client.jobhandling.CommandOutcome> io.camunda.client.jobhandling.CommandWrapper::executeAsync()",
+          "justification": "CommandWrapper.executeAsync() now returns CompletableFuture<CommandOutcome>; source-compatible as callers can ignore the return value."
+        },
+        {
+          "ignore": true,
+          "code": "java.method.returnTypeChanged",
+          "old": "method void io.camunda.client.jobhandling.CommandWrapper::executeAsyncWithMetrics(java.util.function.BiConsumer<io.camunda.client.metrics.MetricsRecorder, io.camunda.client.metrics.MetricsRecorder.CounterMetricsContext>)",
+          "new": "method java.util.concurrent.CompletableFuture<io.camunda.client.jobhandling.CommandOutcome> io.camunda.client.jobhandling.CommandWrapper::executeAsyncWithMetrics(java.util.function.BiConsumer<io.camunda.client.metrics.MetricsRecorder, io.camunda.client.metrics.MetricsRecorder.CounterMetricsContext>)",
+          "justification": "CommandWrapper.executeAsyncWithMetrics() now returns CompletableFuture<CommandOutcome>; source-compatible as callers can ignore the return value."
         }
       ]
     }
