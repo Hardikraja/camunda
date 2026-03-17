@@ -44,6 +44,7 @@ import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.TrustManagerFactory;
 import org.apache.hc.client5.http.async.AsyncExecChainHandler;
+import org.apache.hc.client5.http.config.ConnectionConfig;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.config.RequestConfig.Builder;
 import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
@@ -142,6 +143,11 @@ public class HttpClientFactory {
 
     if (config.useClientSideLoadBalancing()) {
       connectionManagerBuilder.setDnsResolver(new RandomizedDnsResolver());
+      // Use a short connection TTL to force frequent re-resolution of DNS. Without this,
+      // pooled connections are reused indefinitely, and the randomized DNS resolver would
+      // only take effect when a new connection is created — defeating load balancing.
+      connectionManagerBuilder.setDefaultConnectionConfig(
+          ConnectionConfig.custom().setTimeToLive(TimeValue.ofSeconds(1)).build());
     }
 
     final PoolingAsyncClientConnectionManager connectionManager = connectionManagerBuilder.build();
