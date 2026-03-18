@@ -1407,6 +1407,107 @@ jobs:
       runFeTests: ${{ needs.detect-changes.outputs.operate-frontend-changes == 'true' }}
       runBeTests: ${{ needs.detect-changes.outputs.operate-backend-changes == 'true' || needs.detect-changes.outputs.zeebe-changes == 'true'}}
 
+  operate-fe-test-report:
+    name: "Operate / FE Test Report"
+    if: >-
+      always() &&
+      github.event_name == 'pull_request' &&
+      needs.operate-ci.result != 'skipped'
+    needs: [operate-ci]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      checks: write
+      pull-requests: write
+    steps:
+      - name: Download visual regression test results
+        uses: actions/download-artifact@v8
+        with:
+          name: operate-visual-regression-test-results
+          path: vr-test-results
+        continue-on-error: true
+      - name: Publish Visual Regression Test Results
+        if: hashFiles('vr-test-results/**/*.xml') != ''
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: 'vr-test-results/**/*.xml'
+          check_name: 'Operate Visual Regression Test Results'
+          comment_title: 'Operate Visual Regression Test Results'
+          comment_mode: update
+      - name: Download VR diff images
+        if: always()
+        uses: actions/download-artifact@v8
+        with:
+          pattern: operate-fe-visual-regression-test-results-*
+          path: vr-test-artifacts
+          merge-multiple: true
+        continue-on-error: true
+      - name: Extract diff images
+        if: always()
+        id: extract-diffs
+        run: |
+          mkdir -p diff-images
+          find vr-test-artifacts -name "*-diff.png" -exec cp {} diff-images/ \; 2>/dev/null || true
+          find vr-test-artifacts -name "*-actual.png" -exec cp {} diff-images/ \; 2>/dev/null || true
+          find vr-test-artifacts -name "*-expected.png" -exec cp {} diff-images/ \; 2>/dev/null || true
+          COUNT=$(find diff-images -name "*-diff.png" 2>/dev/null | wc -l)
+          echo "diff_count=$COUNT" >> "$GITHUB_OUTPUT"
+      - name: Post VR diff comment to PR
+        if: always() && steps.extract-diffs.outputs.diff_count > 0
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const diffDir = 'diff-images';
+            const diffs = fs.readdirSync(diffDir).filter(f => f.endsWith('-diff.png'));
+
+            if (diffs.length === 0) return;
+
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            let body = '## Visual Regression Diffs\n\n';
+            body += `**${diffs.length} screenshot(s)** differ from baseline.\n\n`;
+            body += '| # | Failed Screenshot |\n|---|---|\n';
+
+            for (const [i, diff] of diffs.slice(0, 20).entries()) {
+              const testName = diff.replace('-diff.png', '');
+              body += `| ${i + 1} | \`${testName}\` |\n`;
+            }
+
+            if (diffs.length > 20) {
+              body += `\n_Showing 20 of ${diffs.length} diffs._\n`;
+            }
+
+            body += `\n> **[Download the Playwright HTML report](${runUrl})** artifact (\`operate-visual-regression-report\`) for interactive visual comparison.\n`;
+            body += `> Diff images are also available in the \`operate-fe-visual-regression-test-results-*\` artifacts.\n\n`;
+            body += `**To approve these changes and update snapshots, add the \`update-snapshots\` label to this PR.**`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c =>
+              c.body?.includes('## Visual Regression Diffs') &&
+              c.user?.login === 'github-actions[bot]'
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
   optimize-ci:
     if: ${{ needs.detect-changes.outputs.java-code-changes == 'true' || needs.detect-changes.outputs.frontend-changes == 'true' }}
     name: "Optimize"
@@ -1592,6 +1693,7 @@ jobs:
       - maven-spotless-linter
       - openapi-lint
       - operate-ci
+      - operate-fe-test-report
       - optimize-ci
       - protobuf-checks
       - rdbms-integration-tests
