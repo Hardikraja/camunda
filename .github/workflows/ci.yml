@@ -1439,7 +1439,6 @@ jobs:
         id: extract-failures
         run: |
           if [ -f vr-test-results/vr-results.xml ]; then
-            FAILURES=$(grep -o '<testcase[^>]*>' vr-test-results/vr-results.xml | grep -c '' || true)
             FAILED=$(grep -c '<failure' vr-test-results/vr-results.xml || true)
             echo "failure_count=$FAILED" >> "$GITHUB_OUTPUT"
             # Extract failed test names
