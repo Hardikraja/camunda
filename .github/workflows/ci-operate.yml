@@ -349,13 +349,6 @@ jobs:
           name: operate-visual-regression-blob-report-${{ matrix.shardIndex }}
           path: operate/client/blob-report
           retention-days: 1
-      - name: Upload test results (diff images)
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: operate-fe-visual-regression-test-results-${{ matrix.shardIndex }}
-          path: operate/client/test-results/
-          retention-days: 7
       - name: Observe build status
         if: always()
         continue-on-error: true

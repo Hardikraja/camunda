@@ -1434,52 +1434,45 @@ jobs:
           check_name: 'Operate Visual Regression Test Results'
           comment_title: 'Operate Visual Regression Test Results'
           comment_mode: update
-      - name: Download VR diff images
+      - name: Extract failed test names from JUnit XML
         if: always()
-        uses: actions/download-artifact@v8
-        with:
-          pattern: operate-fe-visual-regression-test-results-*
-          path: vr-test-artifacts
-          merge-multiple: true
-        continue-on-error: true
-      - name: Extract diff images
-        if: always()
-        id: extract-diffs
+        id: extract-failures
         run: |
-          mkdir -p diff-images
-          find vr-test-artifacts -name "*-diff.png" -exec cp {} diff-images/ \; 2>/dev/null || true
-          find vr-test-artifacts -name "*-actual.png" -exec cp {} diff-images/ \; 2>/dev/null || true
-          find vr-test-artifacts -name "*-expected.png" -exec cp {} diff-images/ \; 2>/dev/null || true
-          COUNT=$(find diff-images -name "*-diff.png" 2>/dev/null | wc -l)
-          echo "diff_count=$COUNT" >> "$GITHUB_OUTPUT"
+          if [ -f vr-test-results/vr-results.xml ]; then
+            FAILURES=$(grep -o '<testcase[^>]*>' vr-test-results/vr-results.xml | grep -c '' || true)
+            FAILED=$(grep -c '<failure' vr-test-results/vr-results.xml || true)
+            echo "failure_count=$FAILED" >> "$GITHUB_OUTPUT"
+            # Extract failed test names
+            grep -B1 '<failure' vr-test-results/vr-results.xml | grep '<testcase' | sed 's/.*name="\([^"]*\)".*/\1/' > /tmp/failed-tests.txt 2>/dev/null || true
+          else
+            echo "failure_count=0" >> "$GITHUB_OUTPUT"
+          fi
       - name: Post VR diff comment to PR
-        if: always() && steps.extract-diffs.outputs.diff_count > 0
+        if: always() && steps.extract-failures.outputs.failure_count > 0
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const diffDir = 'diff-images';
-            const diffs = fs.readdirSync(diffDir).filter(f => f.endsWith('-diff.png'));
+            const failedTests = fs.readFileSync('/tmp/failed-tests.txt', 'utf8').trim().split('\n').filter(Boolean);
+            const failureCount = parseInt('${{ steps.extract-failures.outputs.failure_count }}', 10);
 
-            if (diffs.length === 0) return;
+            if (failureCount === 0) return;
 
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
 
             let body = '## Visual Regression Diffs\n\n';
-            body += `**${diffs.length} screenshot(s)** differ from baseline.\n\n`;
+            body += `**${failureCount} screenshot(s)** differ from baseline.\n\n`;
             body += '| # | Failed Screenshot |\n|---|---|\n';
 
-            for (const [i, diff] of diffs.slice(0, 20).entries()) {
-              const testName = diff.replace('-diff.png', '');
-              body += `| ${i + 1} | \`${testName}\` |\n`;
+            for (const [i, name] of failedTests.slice(0, 20).entries()) {
+              body += `| ${i + 1} | \`${name}\` |\n`;
             }
 
-            if (diffs.length > 20) {
-              body += `\n_Showing 20 of ${diffs.length} diffs._\n`;
+            if (failedTests.length > 20) {
+              body += `\n_Showing 20 of ${failedTests.length} failures._\n`;
             }
 
-            body += `\n> **[Download the Playwright HTML report](${runUrl})** artifact (\`operate-visual-regression-report\`) for interactive visual comparison.\n`;
-            body += `> Diff images are also available in the \`operate-fe-visual-regression-test-results-*\` artifacts.\n\n`;
+            body += `\n> **[Download the Playwright HTML report](${runUrl})** artifact (\`operate-visual-regression-report\`) for interactive visual comparison.\n\n`;
             body += `**To approve these changes and update snapshots, add the \`update-snapshots\` label to this PR.**`;
 
             const { data: comments } = await github.rest.issues.listComments({
