@@ -7,6 +7,10 @@
 name: Camunda Weekly Benchmark on ECS
 
 on:
+  push:
+    # TODO: remove before merging — temporary trigger for testing
+    branches:
+      - dd-weekly-ecs-benchmark
   workflow_dispatch:
     inputs:
       image_tag:
