@@ -38,8 +38,6 @@ public final class FeatureFlagsCfg {
   private boolean enableStraightThroughProcessingLoopDetector =
       DEFAULT_SETTINGS.enableStraightThroughProcessingLoopDetector();
   private boolean enableMessageBodyOnExpired = DEFAULT_SETTINGS.enableMessageBodyOnExpired();
-  private boolean enableGenericResourceDeployment =
-      DEFAULT_SETTINGS.enableGenericResourceDeployment();
 
   public boolean isEnableYieldingDueDateChecker() {
     return enableYieldingDueDateChecker;
@@ -90,14 +88,6 @@ public final class FeatureFlagsCfg {
     this.enableMessageBodyOnExpired = enableMessageBodyOnExpired;
   }
 
-  public boolean isEnableGenericResourceDeployment() {
-    return enableGenericResourceDeployment;
-  }
-
-  public void setEnableGenericResourceDeployment(final boolean enableGenericResourceDeployment) {
-    this.enableGenericResourceDeployment = enableGenericResourceDeployment;
-  }
-
   public FeatureFlags toFeatureFlags() {
     return new FeatureFlags(
         enableYieldingDueDateChecker,
@@ -105,8 +95,7 @@ public final class FeatureFlagsCfg {
         enableMessageTtlCheckerAsync,
         enableTimerDueDateCheckerAsync,
         enableStraightThroughProcessingLoopDetector,
-        enableMessageBodyOnExpired,
-        enableGenericResourceDeployment);
+        enableMessageBodyOnExpired);
   }
 
   @Override

@@ -208,10 +208,6 @@ public class BrokerBasedPropertiesOverride {
         .getExperimental()
         .getFeatures()
         .setEnableMessageBodyOnExpired(processing.isEnableMessageBodyOnExpired());
-    override
-        .getExperimental()
-        .getFeatures()
-        .setEnableGenericResourceDeployment(processing.isEnableGenericResourceDeployment());
 
     populateFromEngine(override);
   }

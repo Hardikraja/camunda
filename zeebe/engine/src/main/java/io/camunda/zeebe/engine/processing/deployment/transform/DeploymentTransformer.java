@@ -38,7 +38,6 @@ public final class DeploymentTransformer {
   private static final Logger LOG = Loggers.PROCESS_PROCESSOR_LOGGER;
   private final Map<String, DeploymentResourceTransformer> resourceTransformers;
   private final DeploymentResourceTransformer defaultResourceTransformer;
-  private final boolean enableGenericResourceDeployment;
   private final ChecksumGenerator checksumGenerator = new ChecksumGenerator();
   // internal changes during processing
   private RejectionType rejectionType;
@@ -84,8 +83,6 @@ public final class DeploymentTransformer {
     defaultResourceTransformer =
         new DefaultResourceTransformer(
             keyGenerator, stateWriter, checksumGenerator, processingState.getResourceState());
-
-    enableGenericResourceDeployment = featureFlags.enableGenericResourceDeployment();
 
     resourceTransformers =
         Map.ofEntries(
@@ -230,49 +227,13 @@ public final class DeploymentTransformer {
         .filter(entry -> resourceName.endsWith(entry.getKey()))
         .map(Entry::getValue)
         .findFirst()
-        .orElseGet(
-            () ->
-                enableGenericResourceDeployment
-                    ? defaultResourceTransformer
-                    : new UnsupportedResourceTransformer(resourceName));
+        .orElse(defaultResourceTransformer);
   }
 
   private static void handleUnexpectedError(
       final String resourceName, final RuntimeException exception, final StringBuilder errors) {
     LOG.error("Unexpected error while processing resource '{}'", resourceName, exception);
     errors.append("\n'").append(resourceName).append("': ").append(exception.getMessage());
-  }
-
-  /**
-   * A transformer that rejects resources with unrecognized file extensions. Used when the
-   * {@code enableGenericResourceDeployment} alpha feature flag is disabled.
-   */
-  private static final class UnsupportedResourceTransformer
-      implements DeploymentResourceTransformer {
-
-    private final String resourceName;
-
-    UnsupportedResourceTransformer(final String resourceName) {
-      this.resourceName = resourceName;
-    }
-
-    @Override
-    public Either<Failure, Void> createMetadata(
-        final DeploymentResource resource,
-        final DeploymentRecord deployment,
-        final DeploymentResourceContext context) {
-      return Either.left(
-          new Failure(
-              "'" + resourceName + "': unknown resource type. Generic resource deployment is"
-                  + " an alpha feature and must be enabled via"
-                  + " camunda.processing.enable-generic-resource-deployment=true"
-                  + " (or zeebe.broker.experimental.features.enableGenericResourceDeployment=true"
-                  + " for legacy configuration)."));
-    }
-
-    @Override
-    public void writeRecords(
-        final DeploymentResource resource, final DeploymentRecord deployment) {}
   }
 
   private record BpmnResource(
