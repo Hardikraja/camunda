@@ -188,6 +188,21 @@ public final class DeploymentTransformer {
       if (result.isRight()) {
         return true;
       } else {
+        // If a .xml file fails BPMN parsing, try the default resource transformer as fallback
+        if (resourceName.endsWith(".xml") && transformer != defaultResourceTransformer) {
+          final var fallbackResult =
+              defaultResourceTransformer.createMetadata(
+                  deploymentResource, deploymentEvent, context);
+          if (fallbackResult.isRight()) {
+            return true;
+          } else {
+            // If fallback also fails, report the original BPMN error
+            final var failureMessage = result.getLeft().getMessage();
+            errors.append("\n").append(failureMessage);
+            return false;
+          }
+        }
+
         final var failureMessage = result.getLeft().getMessage();
         errors.append("\n").append(failureMessage);
         return false;
@@ -207,6 +222,11 @@ public final class DeploymentTransformer {
     final var transformer = getResourceTransformer(resourceName);
     try {
       transformer.writeRecords(deploymentResource, deploymentEvent);
+      // For .xml files, also try the default transformer in case it was used as fallback during
+      // createMetadata. Each transformer only writes records if matching metadata exists.
+      if (resourceName.endsWith(".xml") && transformer != defaultResourceTransformer) {
+        defaultResourceTransformer.writeRecords(deploymentResource, deploymentEvent);
+      }
       return true;
     } catch (final RuntimeException e) {
       handleUnexpectedError(resourceName, e, errors);
