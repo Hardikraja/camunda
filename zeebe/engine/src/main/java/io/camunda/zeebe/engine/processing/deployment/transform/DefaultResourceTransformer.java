@@ -74,6 +74,17 @@ class DefaultResourceTransformer implements DeploymentResourceTransformer {
   }
 
   /**
+   * The default transformer accepts any resource that was not handled by other transformers.
+   *
+   * @param resource the raw deployment resource
+   * @return always returns {@code true} as this is the fallback transformer
+   */
+  @Override
+  public boolean canTransform(final DeploymentResource resource) {
+    return true;
+  }
+
+  /**
    * Parses the deployment resource to extract the resource identity (ID and optional version tag).
    *
    * <p>The default implementation uses the resource name (filename) as the resource ID. Subclasses

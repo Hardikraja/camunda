@@ -32,6 +32,11 @@ public class RpaTransformer extends DefaultResourceTransformer {
   }
 
   @Override
+  public boolean canTransform(final DeploymentResource resource) {
+    return resource.getResourceName().endsWith(".rpa");
+  }
+
+  @Override
   protected Either<Failure, ResourceId> parseResourceId(final DeploymentResource resource) {
     try {
       final var rpaResource =
