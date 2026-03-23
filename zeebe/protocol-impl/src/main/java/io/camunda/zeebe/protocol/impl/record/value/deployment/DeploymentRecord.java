@@ -268,4 +268,17 @@ public final class DeploymentRecord extends UnifiedRecordValue implements Deploy
         && formMetadata().stream().allMatch(FormMetadataValue::isDuplicate)
         && resourceMetadata().stream().allMatch(ResourceMetadataValue::isDuplicate);
   }
+
+  /**
+   * Finds a resource metadata entry by its resource ID.
+   *
+   * @param resourceId the resource ID to search for
+   * @return the metadata record if found, {@code null} otherwise
+   */
+  public ResourceMetadataRecord findResourceMetadataByResourceId(final String resourceId) {
+    return resourceMetadata().stream()
+        .filter(metadata -> metadata.getResourceId().equals(resourceId))
+        .findFirst()
+        .orElse(null);
+  }
 }

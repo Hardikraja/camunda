@@ -89,6 +89,8 @@ public final class BpmnResourceTransformer implements DeploymentResourceTransfor
       return true;
     }
     // .xml files: try to parse as BPMN and only handle if it's valid BPMN
+    // Note: This requires parsing the resource, which will be done again in createMetadata().
+    // This is necessary to distinguish BPMN .xml files from generic .xml files.
     if (resourceName.endsWith(".xml")) {
       return readProcessDefinition(resource).isRight();
     }

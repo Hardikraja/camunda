@@ -105,7 +105,7 @@ class DefaultResourceTransformer implements DeploymentResourceTransformer {
     return parseResourceId(deploymentResource)
         .flatMap(
             resourceId ->
-                checkForDuplicateResourceId(resourceId.id(), deploymentResource, deployment)
+                checkForDuplicateResourceId(resourceId, deploymentResource, deployment)
                     .flatMap(
                         ignored -> {
                           final ResourceMetadataRecord resourceMetadataRecord =
@@ -123,28 +123,25 @@ class DefaultResourceTransformer implements DeploymentResourceTransformer {
       return;
     }
     parseResourceId(resource)
+        .map(
+            resourceId -> deployment.findResourceMetadataByResourceId(resourceId.id()))
         .ifRight(
-            resourceId ->
-                deployment.resourceMetadata().stream()
-                    .filter(metadata -> resourceId.id().equals(metadata.getResourceId()))
-                    .findFirst()
-                    .ifPresent(
-                        metadata -> {
-                          if (metadata.isDuplicate()) {
-                            // create new version as the deployment contains at least one other
-                            // non-duplicate
-                            // resource and all resources in a deployment should be versioned
-                            // together
-                            metadata
-                                .setResourceKey(keyGenerator.nextKey())
-                                .setVersion(
-                                    resourceState.getNextResourceVersion(
-                                        metadata.getResourceId(), metadata.getTenantId()))
-                                .setDuplicate(false)
-                                .setDeploymentKey(deployment.getDeploymentKey());
-                          }
-                          writeResourceRecord(metadata, resource);
-                        }));
+            metadata -> {
+              if (metadata != null) {
+                if (metadata.isDuplicate()) {
+                  // create new version as the deployment contains at least one other non-duplicate
+                  // resource and all resources in a deployment should be versioned together
+                  metadata
+                      .setResourceKey(keyGenerator.nextKey())
+                      .setVersion(
+                          resourceState.getNextResourceVersion(
+                              metadata.getResourceId(), metadata.getTenantId()))
+                      .setDuplicate(false)
+                      .setDeploymentKey(deployment.getDeploymentKey());
+                }
+                writeResourceRecord(metadata, resource);
+              }
+            });
   }
 
   private void writeResourceRecord(
@@ -156,11 +153,11 @@ class DefaultResourceTransformer implements DeploymentResourceTransformer {
   }
 
   private Either<Failure, Void> checkForDuplicateResourceId(
-      final String resourceId,
+      final ResourceId resourceId,
       final DeploymentResource resource,
       final DeploymentRecord deployment) {
     return deployment.getResourceMetadata().stream()
-        .filter(metadata -> metadata.getResourceId().equals(resourceId))
+        .filter(metadata -> metadata.getResourceId().equals(resourceId.id()))
         .findFirst()
         .map(
             dupeResource -> {
@@ -168,7 +165,7 @@ class DefaultResourceTransformer implements DeploymentResourceTransformer {
                   String.format(
                       "Expected the resource ids to be unique within a deployment"
                           + " but found a duplicated id '%s' in the resources '%s' and '%s'.",
-                      resourceId, dupeResource.getResourceName(), resource.getResourceName());
+                      resourceId.id(), dupeResource.getResourceName(), resource.getResourceName());
               return Either.<Failure, Void>left(new Failure(failureMessage));
             })
         .orElse(SUCCESS);
