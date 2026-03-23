@@ -218,26 +218,27 @@ public final class DmnResourceTransformer implements DeploymentResourceTransform
         .findFirst()
         .map(
             duplicatedDecision -> {
+              // Find the resource name for the decision requirements that contains the duplicate
+              final var otherResourceName =
+                  deploymentEvent.getDecisionRequirementsMetadata().stream()
+                      .filter(
+                          drg ->
+                              drg.getDecisionRequirementsKey()
+                                  == duplicatedDecision.getDecisionRequirementsKey())
+                      .map(DecisionRequirementsMetadataValue::getResourceName)
+                      .findFirst()
+                      .orElse("<?>");
+
               final var failureMessage =
                   String.format(
                       "Expected the decision ids to be unique within a deployment"
                           + " but found a duplicated id '%s' in the resources '%s' and '%s'.",
                       duplicatedDecision.getDecisionId(),
-                      findResourceName(
-                          deploymentEvent, duplicatedDecision.getDecisionRequirementsKey()),
+                      otherResourceName,
                       resource.getResourceName());
               return Either.left(new Failure(failureMessage));
             })
         .orElse(NO_VALIDATION_ERROR);
-  }
-
-  private String findResourceName(
-      final DeploymentRecord deploymentEvent, final long decisionRequirementsKey) {
-    return deploymentEvent.getDecisionRequirementsMetadata().stream()
-        .filter(drg -> drg.getDecisionRequirementsKey() == decisionRequirementsKey)
-        .map(DecisionRequirementsMetadataValue::getResourceName)
-        .findFirst()
-        .orElse("<?>");
   }
 
   private Either<Failure, ?> checkDrdIdNameLength(
