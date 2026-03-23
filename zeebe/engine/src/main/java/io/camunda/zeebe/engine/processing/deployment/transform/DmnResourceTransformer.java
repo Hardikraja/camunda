@@ -29,6 +29,7 @@ import io.camunda.zeebe.protocol.impl.record.value.deployment.DeploymentRecord;
 import io.camunda.zeebe.protocol.impl.record.value.deployment.DeploymentResource;
 import io.camunda.zeebe.protocol.record.intent.DecisionIntent;
 import io.camunda.zeebe.protocol.record.intent.DecisionRequirementsIntent;
+import io.camunda.zeebe.protocol.record.value.deployment.DecisionRecordValue;
 import io.camunda.zeebe.protocol.record.value.deployment.DecisionRequirementsMetadataValue;
 import io.camunda.zeebe.stream.api.state.KeyGenerator;
 import io.camunda.zeebe.util.Either;
@@ -218,16 +219,8 @@ public final class DmnResourceTransformer implements DeploymentResourceTransform
         .findFirst()
         .map(
             duplicatedDecision -> {
-              // Find the resource name for the decision requirements that contains the duplicate
               final var otherResourceName =
-                  deploymentEvent.getDecisionRequirementsMetadata().stream()
-                      .filter(
-                          drg ->
-                              drg.getDecisionRequirementsKey()
-                                  == duplicatedDecision.getDecisionRequirementsKey())
-                      .map(DecisionRequirementsMetadataValue::getResourceName)
-                      .findFirst()
-                      .orElse("<?>");
+                  getResourceNameForDecision(deploymentEvent, duplicatedDecision);
 
               final var failureMessage =
                   String.format(
@@ -239,6 +232,27 @@ public final class DmnResourceTransformer implements DeploymentResourceTransform
               return Either.left(new Failure(failureMessage));
             })
         .orElse(NO_VALIDATION_ERROR);
+  }
+
+  /**
+   * Retrieves the resource name for a decision by looking up its parent DRG.
+   *
+   * <p>Resource names are stored at the DRG (Decision Requirements Graph) level, not at the
+   * individual decision level, since multiple decisions can come from the same DMN file. This
+   * method looks up the DRG metadata using the decision's decisionRequirementsKey to find the
+   * resource name.
+   *
+   * @param deploymentEvent the deployment record containing all DRG metadata
+   * @param decision the decision for which to find the resource name
+   * @return the resource name of the DMN file containing this decision, or "<?>" if not found
+   */
+  private String getResourceNameForDecision(
+      final DeploymentRecord deploymentEvent, final DecisionRecordValue decision) {
+    return deploymentEvent.getDecisionRequirementsMetadata().stream()
+        .filter(drg -> drg.getDecisionRequirementsKey() == decision.getDecisionRequirementsKey())
+        .map(DecisionRequirementsMetadataValue::getResourceName)
+        .findFirst()
+        .orElse("<?>");
   }
 
   private Either<Failure, ?> checkDrdIdNameLength(
