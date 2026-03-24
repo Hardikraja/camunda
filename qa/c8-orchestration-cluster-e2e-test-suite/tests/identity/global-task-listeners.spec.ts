@@ -127,9 +127,12 @@ test.describe.serial('global task listeners CRUD', () => {
     await expect(
       identityGlobalTaskListenersPage.createGlobalTaskListenerModal,
     ).toBeVisible();
+    // Use the Carbon error notification class to avoid strict-mode violation:
+    // the modal also contains two hidden <span role="alert"> counter elements
+    // on the text inputs, so a bare [role="alert"] resolves to 3 elements.
     await expect(
       identityGlobalTaskListenersPage.createGlobalTaskListenerModal.locator(
-        '[role="alert"]',
+        '.cds--inline-notification--error',
       ),
     ).toBeVisible();
 
