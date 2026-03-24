@@ -11,6 +11,7 @@ import com.google.rpc.Code;
 import io.camunda.security.configuration.SecurityConfiguration;
 import io.camunda.service.UserServices;
 import io.camunda.zeebe.broker.client.api.BrokerClient;
+import io.camunda.zeebe.broker.client.api.BrokerTopologyListener;
 import io.camunda.zeebe.gateway.health.GatewayHealthManager;
 import io.camunda.zeebe.gateway.health.Status;
 import io.camunda.zeebe.gateway.health.impl.GatewayHealthManagerImpl;
@@ -195,12 +196,36 @@ public final class Gateway implements CloseableSilently {
     healthManager.setStatus(Status.STARTING);
 
     createAndStartActivateJobsHandler(brokerClient)
-        .thenCombine(startClientStreamAdapter(), this::createServer)
+        .thenCombine(startClientStreamAdapter(), this::initializeGateway)
         .thenAccept(this::startServer)
         .thenApply(ok -> this)
         .whenComplete(resultFuture);
 
     return resultFuture;
+  }
+
+  private Server initializeGateway(
+      final ActivateJobsHandler<ActivateJobsResponse> activateJobsHandler,
+      final StreamJobsHandler streamJobsHandler) {
+    registerPurgeListener(activateJobsHandler);
+    return createServer(activateJobsHandler, streamJobsHandler);
+  }
+
+  private void registerPurgeListener(
+      final ActivateJobsHandler<ActivateJobsResponse> activateJobsHandler) {
+    final var topologyManager = brokerClient.getTopologyManager();
+    if (topologyManager == null) {
+      return;
+    }
+    if (activateJobsHandler instanceof LongPollingActivateJobsHandler<?> lpHandler) {
+      topologyManager.addTopologyListener(
+          new BrokerTopologyListener() {
+            @Override
+            public void clusterIncarnationChanged() {
+              lpHandler.onClusterPurge();
+            }
+          });
+    }
   }
 
   private void startServer(final Server server) {
