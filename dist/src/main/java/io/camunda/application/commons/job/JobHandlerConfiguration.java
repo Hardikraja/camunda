@@ -12,6 +12,7 @@ import io.camunda.gateway.mapping.http.GatewayErrorMapper;
 import io.camunda.gateway.mapping.http.ResponseMapper;
 import io.camunda.gateway.protocol.model.JobActivationResult;
 import io.camunda.zeebe.broker.client.api.BrokerClient;
+import io.camunda.zeebe.broker.client.api.BrokerTopologyListener;
 import io.camunda.zeebe.gateway.impl.configuration.LongPollingCfg;
 import io.camunda.zeebe.gateway.impl.job.ActivateJobsHandler;
 import io.camunda.zeebe.gateway.impl.job.LongPollingActivateJobsHandler;
@@ -83,19 +84,32 @@ public class JobHandlerConfiguration {
 
   private LongPollingActivateJobsHandler<JobActivationResult> buildLongPollingHandler(
       final BrokerClient brokerClient) {
-    return LongPollingActivateJobsHandler.<JobActivationResult>newBuilder()
-        .setBrokerClient(brokerClient)
-        .setMaxMessageSize(config.maxMessageSize().toBytes())
-        .setLongPollingTimeout(config.longPolling().getTimeout())
-        .setProbeTimeoutMillis(config.longPolling().getProbeTimeout())
-        .setMinEmptyResponses(config.longPolling().getMinEmptyResponses())
-        .setActivationResultMapper(ResponseMapper::toActivateJobsResponse)
-        .setResourceExhaustedExceptionProvider(
-            GatewayErrorMapper.RESOURCE_EXHAUSTED_EXCEPTION_PROVIDER)
-        .setRequestCanceledExceptionProvider(GatewayErrorMapper.REQUEST_CANCELED_EXCEPTION_PROVIDER)
-        .setMetrics(
-            new LongPollingMetrics(meterRegistry, LongPollingMetricsDoc.GatewayProtocol.REST))
-        .build();
+    final var handler =
+        LongPollingActivateJobsHandler.<JobActivationResult>newBuilder()
+            .setBrokerClient(brokerClient)
+            .setMaxMessageSize(config.maxMessageSize().toBytes())
+            .setLongPollingTimeout(config.longPolling().getTimeout())
+            .setProbeTimeoutMillis(config.longPolling().getProbeTimeout())
+            .setMinEmptyResponses(config.longPolling().getMinEmptyResponses())
+            .setActivationResultMapper(ResponseMapper::toActivateJobsResponse)
+            .setResourceExhaustedExceptionProvider(
+                GatewayErrorMapper.RESOURCE_EXHAUSTED_EXCEPTION_PROVIDER)
+            .setRequestCanceledExceptionProvider(
+                GatewayErrorMapper.REQUEST_CANCELED_EXCEPTION_PROVIDER)
+            .setMetrics(
+                new LongPollingMetrics(meterRegistry, LongPollingMetricsDoc.GatewayProtocol.REST))
+            .build();
+    // Register for purge notifications so pending long-poll requests are cancelled on cluster purge
+    brokerClient
+        .getTopologyManager()
+        .addTopologyListener(
+            new BrokerTopologyListener() {
+              @Override
+              public void clusterIncarnationChanged() {
+                handler.onClusterPurge();
+              }
+            });
+    return handler;
   }
 
   public record ActivateJobHandlerConfiguration(
