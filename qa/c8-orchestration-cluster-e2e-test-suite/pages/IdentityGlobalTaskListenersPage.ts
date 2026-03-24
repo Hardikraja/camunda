@@ -45,9 +45,12 @@ export class IdentityGlobalTaskListenersPage {
     this.globalTaskListenerCell = (name) =>
       this.globalTaskListenersList.getByRole('cell', {name, exact: true});
 
-    // List page button: t('createListener') = 'Create listener'
+    // Two possible create buttons depending on page state:
+    //   - Toolbar (records exist):  t('createListener') = 'Create listener'
+    //   - Empty state (no records): t('emptyStateButtonCreate', {resourceType: 'global user task listener'})
+    //                               = 'Create global user task listener'
     this.createGlobalTaskListenerButton = page.getByRole('button', {
-      name: 'Create listener',
+      name: /^Create (listener|global user task listener)$/,
     });
 
     // Edit: icon-only button, iconDescription = t('editGlobalTaskListener') = 'Update user task listener'
@@ -112,9 +115,10 @@ export class IdentityGlobalTaskListenersPage {
     this.deleteGlobalTaskListenerModalDeleteButton =
       this.deleteGlobalTaskListenerModal.getByRole('button', {name: 'Delete'});
 
-    // t('noGlobalTaskListeners') = 'No user task listeners created yet'
+    // PageEmptyState uses t('emptyStateTitleCreate', {resourceType: t('globalTaskListener').toLowerCase()})
+    // = 'No global user task listeners created yet'
     this.emptyStateLocator = page.getByText(
-      'No user task listeners created yet',
+      'No global user task listeners created yet',
     );
   }
 
@@ -131,11 +135,26 @@ export class IdentityGlobalTaskListenersPage {
     await expect(this.createGlobalTaskListenerModal).toBeVisible();
     await this.createGlobalTaskListenerIdField.fill(listenerId);
     await this.createGlobalTaskListenerTypeField.fill(listenerType);
-    // Carbon MultiSelect: click the combobox (titleText='Event type') then click the option
-    await this.createGlobalTaskListenerModal
-      .getByRole('combobox', {name: 'Event type'})
+    // Blur the type field first: Carbon's downshift loses the MultiSelect click if a
+    // blur-triggered re-render fires simultaneously with the toggle button click.
+    await this.createGlobalTaskListenerTypeField.blur();
+    // Carbon MultiSelect: the toggle <button> sits inside a div[role="combobox"], so its
+    // implicit button ARIA role is hidden. Use a CSS locator to find the <button> directly.
+    const createEventTypeToggle = this.createGlobalTaskListenerModal.locator(
+      '#event-type-multiselect button',
+    );
+    await createEventTypeToggle.click();
+    // Wait for the listbox menu to open (Carbon renders it conditionally on isOpen).
+    const createEventTypeMenu = this.createGlobalTaskListenerModal.locator(
+      '#event-type-multiselect .cds--list-box__menu',
+    );
+    await expect(createEventTypeMenu).toBeVisible();
+    // Carbon portals the listbox to document.body outside the dialog; the browser marks it as
+    // aria-hidden via aria-modal, so getByRole('option') finds nothing. Use a CSS attribute
+    // selector to bypass the aria-modal ARIA tree exclusion and find the item directly.
+    await this.page
+      .locator('[role="option"]', {hasText: eventTypeLabel})
       .click();
-    await this.page.getByRole('option', {name: eventTypeLabel}).click();
     await this.createGlobalTaskListenerModalCreateButton.click();
     await expect(this.createGlobalTaskListenerModal).toBeHidden();
   }
@@ -150,10 +169,19 @@ export class IdentityGlobalTaskListenersPage {
     await this.editGlobalTaskListenerTypeField.clear();
     await this.editGlobalTaskListenerTypeField.fill(newType);
     if (newEventTypeLabel) {
-      await this.editGlobalTaskListenerModal
-        .getByRole('combobox', {name: 'Event type'})
+      await this.editGlobalTaskListenerTypeField.blur();
+      const editEventTypeToggle = this.editGlobalTaskListenerModal.locator(
+        '#event-type-multiselect-edit button',
+      );
+      await editEventTypeToggle.click();
+      const editEventTypeMenu = this.editGlobalTaskListenerModal.locator(
+        '#event-type-multiselect-edit .cds--list-box__menu',
+      );
+      await expect(editEventTypeMenu).toBeVisible();
+      // Same aria-modal portal exclusion fix as in createGlobalTaskListener.
+      await this.page
+        .locator('[role="option"]', {hasText: newEventTypeLabel})
         .click();
-      await this.page.getByRole('option', {name: newEventTypeLabel}).click();
     }
     await this.editGlobalTaskListenerModalUpdateButton.click();
     await expect(this.editGlobalTaskListenerModal).toBeHidden();
