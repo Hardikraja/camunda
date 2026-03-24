@@ -59,12 +59,13 @@ public final class ZeebeRocksDbFactory<
       final ConsistencyChecksSettings consistencyChecksSettings,
       final AccessMetricsConfiguration metricsConfiguration,
       final Supplier<MeterRegistry> meterRegistryFactory) {
+
     this(
         rocksDbConfiguration,
         consistencyChecksSettings,
         metricsConfiguration,
         meterRegistryFactory,
-        SharedRocksDbResources.allocate(rocksDbConfiguration.getMemoryLimit()),
+        new SharedRocksDbResources(rocksDbConfiguration.getMemoryLimit()),
         3);
   }
 
@@ -169,7 +170,7 @@ public final class ZeebeRocksDbFactory<
             // a good balance between useful for performance and small for replication
             .setLogFileTimeToRoll(Duration.ofMinutes(30).toSeconds())
             .setKeepLogFileNum(2)
-            .setWriteBufferManager(sharedRocksDbResources.sharedWbm);
+            .setWriteBufferManager(sharedRocksDbResources.getSharedWbm());
 
     // limit I/O writes
     if (rocksDbConfiguration.getIoRateBytesPerSecond() > 0) {
@@ -231,7 +232,7 @@ public final class ZeebeRocksDbFactory<
    */
   MemoryConfiguration calculateMemoryConfiguration() {
     final var totalMemoryBudgetPerPartition =
-        sharedRocksDbResources.reservedMemory / partitionCount;
+        sharedRocksDbResources.getReservedMemory() / partitionCount;
 
     // recommended by RocksDB, but we could tweak it; keep in mind we're also caching the indexes
     // and filters into the block cache, so we don't need to account for more memory there
@@ -339,7 +340,7 @@ public final class ZeebeRocksDbFactory<
     closeables.add(filter);
 
     return new BlockBasedTableConfig()
-        .setBlockCache(sharedRocksDbResources.sharedCache)
+        .setBlockCache(sharedRocksDbResources.getSharedCache())
         // increasing block size means reducing memory usage, but increasing read iops
         .setBlockSize(32 * 1024L)
         // full and partitioned filters use a more efficient bloom filter implementation when
@@ -366,30 +367,49 @@ public final class ZeebeRocksDbFactory<
         .setWholeKeyFiltering(true);
   }
 
-  public record SharedRocksDbResources(
-      LRUCache sharedCache, WriteBufferManager sharedWbm, long reservedMemory)
-      implements AutoCloseable {
+  public static final class SharedRocksDbResources implements AutoCloseable {
 
     static {
       RocksDB.loadLibrary();
     }
 
-    public static SharedRocksDbResources allocate(final long cacheSize) {
+    private LRUCache sharedCache;
+    private WriteBufferManager sharedWbm;
+    private long reservedMemory;
+
+    public SharedRocksDbResources() {}
+
+    public SharedRocksDbResources(final long cacheSize) {
+      allocate(cacheSize);
+    }
+
+    public void allocate(final long cacheSize) {
       // (#DBs) × write_buffer_size × max_write_buffer_number should be comfortably ≤ your WBM
       // limit,
       // with headroom for memtable bloom/filter overhead. write_buffer_size is calculated in
       // zeebeRocksDBFactory.
-      final LRUCache sharedCache = new LRUCache(cacheSize, 8, false, 0.15);
-      final WriteBufferManager sharedWbm = new WriteBufferManager(cacheSize / 4, sharedCache);
-      return new SharedRocksDbResources(sharedCache, sharedWbm, cacheSize);
-    }
-
-    public static SharedRocksDbResources uninitialized() {
-      return new SharedRocksDbResources(null, null, 0);
+      if (isInitialized()) {
+        close();
+      }
+      sharedCache = new LRUCache(cacheSize, 8, false, 0.15);
+      sharedWbm = new WriteBufferManager(cacheSize / 4, sharedCache);
+      reservedMemory = cacheSize;
     }
 
     public boolean isInitialized() {
       return sharedCache != null && sharedWbm != null;
+    }
+
+    public LRUCache getSharedCache() {
+      return sharedCache;
+    }
+
+    public WriteBufferManager getSharedWbm() {
+      return sharedWbm;
+    }
+
+    public long getReservedMemory() {
+      return reservedMemory;
     }
 
     @Override

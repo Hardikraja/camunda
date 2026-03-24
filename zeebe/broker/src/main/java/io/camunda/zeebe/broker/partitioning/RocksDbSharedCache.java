@@ -11,7 +11,6 @@ import com.sun.management.OperatingSystemMXBean;
 import io.camunda.zeebe.broker.system.configuration.BrokerCfg;
 import io.camunda.zeebe.broker.system.configuration.RocksdbCfg;
 import io.camunda.zeebe.db.impl.rocksdb.RocksDbConfiguration.MemoryAllocationStrategy;
-import io.camunda.zeebe.db.impl.rocksdb.ZeebeRocksDbFactory.SharedRocksDbResources;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.lang.management.ManagementFactory;
 import org.slf4j.Logger;
@@ -22,7 +21,7 @@ public class RocksDbSharedCache {
   public static final double ADVICE_MAX_MEMORY_FRACTION = 0.5;
   private static final Logger LOGGER = LoggerFactory.getLogger(RocksDbSharedCache.class);
 
-  public static SharedRocksDbResources allocateSharedCache(
+  public static long getSharedCacheSize(
       final BrokerCfg brokerCfg, final MeterRegistry meterRegistry, final int partitionsPerBroker) {
     final var rocksdbCfg = brokerCfg.getExperimental().getRocksdb();
     final long blockCacheBytes = getBlockCacheBytes(rocksdbCfg, partitionsPerBroker);
@@ -43,7 +42,7 @@ public class RocksDbSharedCache {
 
     RocksDbSharedCacheMetrics.registerAllocationStrategy(meterRegistry, memoryAllocationStrategy);
 
-    return SharedRocksDbResources.allocate(blockCacheBytes);
+    return blockCacheBytes;
   }
 
   public static long getBlockCacheBytes(
