@@ -111,9 +111,12 @@ export class IdentityGlobalTaskListenersPage {
       this.deleteGlobalTaskListenerModal.getByRole('button', {name: 'Close'});
     this.deleteGlobalTaskListenerModalCancelButton =
       this.deleteGlobalTaskListenerModal.getByRole('button', {name: 'Cancel'});
-    // Confirm: t('delete') = 'Delete'
+    // Confirm: t('delete') = 'Delete'; Carbon danger buttons expose an accessible name
+    // prefixed with "danger " (e.g. "danger Delete"), so match both variants.
     this.deleteGlobalTaskListenerModalDeleteButton =
-      this.deleteGlobalTaskListenerModal.getByRole('button', {name: 'Delete'});
+      this.deleteGlobalTaskListenerModal.getByRole('button', {
+        name: /^(danger )?Delete$/,
+      });
 
     // PageEmptyState uses t('emptyStateTitleCreate', {resourceType: t('globalTaskListener').toLowerCase()})
     // = 'No global user task listeners created yet'
