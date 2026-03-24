@@ -13,11 +13,18 @@ permissions:
 
 jobs:
   api-tests:
-    name: API Tests (${{ matrix.branch }})
+    name: API Tests (${{ matrix.branch }}, Mode ${{ matrix.camunda_mode }})
     strategy:
       fail-fast: false
       matrix:
         branch: [stable/8.6, stable/8.7, stable/8.8, stable/8.9, main]
+        camunda_mode: [profiles]
+        include:
+          # Add all-in-one mode only for stable/8.9 and main
+          - branch: stable/8.9
+            camunda_mode: all-in-one
+          - branch: main
+            camunda_mode: all-in-one
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -33,7 +40,14 @@ jobs:
             DATABASE=elasticsearch docker compose up -d operate tasklist
           else
             echo "Using standalone camunda container"
-            echo "Starting Camunda with NON_STANDALONE:$NON_STANDALONE, database:$DATABASE"
+            if [[ "${{ matrix.camunda_mode }}" == "all-in-one" ]]; then
+              export CAMUNDA_MODE="all-in-one"
+              echo "Starting with CAMUNDA_MODE=all-in-one"
+            else
+              unset CAMUNDA_MODE
+              echo "Starting with profiles SPRING_PROFILES_ACTIVE mode"
+            fi
+            
             DATABASE=elasticsearch docker compose up -d camunda
           fi
         working-directory: qa/c8-orchestration-cluster-e2e-test-suite/config
@@ -182,7 +196,7 @@ jobs:
             --username "$TESTRAIL_USERNAME" \
             --key "$TESTRAIL_KEY" \
             parse_junit --suite-id 17050 \
-            --title "Nightly C8 Orchestration Cluster Test Results - $BRANCH_NAME - API tests - $(date '+%Y-%m-%d %H:%M:%S')" \
+            --title "Nightly C8 Orchestration Cluster Test Results - $BRANCH_NAME (Mode ${{ matrix.camunda_mode }}) - API tests - $(date '+%Y-%m-%d %H:%M:%S')" \
             --close-run \
             -f "$JUNIT_RESULTS_FILE"
 
@@ -200,7 +214,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: json-report-nightly-api-${{ steps.sanitize.outputs.safe_branch }}
+          name: json-report-nightly-api-${{ steps.sanitize.outputs.safe_branch }}-${{ matrix.camunda_mode }}
           path: qa/c8-orchestration-cluster-e2e-test-suite/json-report/**
           retention-days: 60
 
@@ -226,7 +240,6 @@ jobs:
       fail-fast: false
       matrix:
         branch: [ stable/8.9, main ]
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6
@@ -269,7 +282,7 @@ jobs:
           retention-days: 1
 
   api-tests-rdbms:
-    name: API Tests (RDBMS) (${{ matrix.branch }} / ${{ matrix.database.database-name }})
+    name: API Tests (RDBMS) (${{ matrix.branch }} / ${{ matrix.database.database-name }}, Mode ${{ matrix.camunda_mode }})
     needs: build-rdbms-dist
     runs-on: gcp-perf-core-16-default
     timeout-minutes: 60
@@ -279,6 +292,7 @@ jobs:
       fail-fast: false
       matrix:
         branch: [ stable/8.9, main ]
+        camunda_mode: [profiles, all-in-one]
         database:
           # PostgreSQL - Supported versions: 14, 15, 16, 17, 18
           - database-name: "Postgres 14"
@@ -489,7 +503,14 @@ jobs:
       # ── Start Camunda wired to the matrix DB ────────────────────────────────
       - name: Start Camunda with ${{ matrix.branch }} / ${{ matrix.database.database-name }}
         run: |
-          export SPRING_PROFILES_ACTIVE="broker,consolidated-auth,admin,operate,tasklist"
+          if [[ "${{ matrix.camunda_mode }}" == "all-in-one" ]]; then
+            export CAMUNDA_MODE="all-in-one"
+            echo "Starting with CAMUNDA_MODE=all-in-one"
+          else
+            unset CAMUNDA_MODE
+            export SPRING_PROFILES_ACTIVE="broker,consolidated-auth,admin,operate,tasklist"
+            echo "Starting with profiles SPRING_PROFILES_ACTIVE mode"
+          fi
           export ZEEBE_CLOCK_CONTROLLED="true"
           export CAMUNDA_SECURITY_AUTHENTICATION_UNPROTECTEDAPI="false"
           export CAMUNDA_SECURITY_AUTHORIZATIONS_ENABLED="true"
@@ -601,7 +622,7 @@ jobs:
             --username "$TESTRAIL_USERNAME" \
             --key "$TESTRAIL_KEY" \
             parse_junit --suite-id 17050 \
-            --title "Nightly C8 Orchestration Cluster Test Results - $BRANCH_NAME - $DATABASE_NAME - API tests - $(date '+%Y-%m-%d %H:%M:%S')" \
+            --title "Nightly C8 Orchestration Cluster Test Results - $BRANCH_NAME - $DATABASE_NAME (Mode ${{ matrix.camunda_mode }}) - API tests - $(date '+%Y-%m-%d %H:%M:%S')" \
             --close-run \
             -f "$JUNIT_RESULTS_FILE"
 
@@ -609,7 +630,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: json-report-nightly-api-rdbms-${{ steps.sanitize.outputs.safe_branch }}-${{ matrix.database.database-name }}
+          name: json-report-nightly-api-rdbms-${{ steps.sanitize.outputs.safe_branch }}-${{ matrix.database.database-name }}-${{ matrix.camunda_mode }}
           path: qa/c8-orchestration-cluster-e2e-test-suite/json-report/**
           retention-days: 60
 
@@ -618,7 +639,7 @@ jobs:
         continue-on-error: true
         uses: ./.github/actions/observe-build-status
         with:
-          job_name: "c8-orchestration-cluster-e2e-nightly-api-rdbms-tests/(${{ matrix.branch }} / ${{ matrix.database.database-name }})"
+          job_name: "c8-orchestration-cluster-e2e-nightly-api-rdbms-tests/(${{ matrix.branch }} / ${{ matrix.database.database-name }} / ${{ matrix.camunda_mode }})"
           build_status: ${{ job.status }}
           secret_vault_address: ${{ secrets.VAULT_ADDR }}
           secret_vault_roleId: ${{ secrets.VAULT_ROLE_ID }}
