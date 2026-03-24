@@ -39,6 +39,9 @@ export const Paths = {
   authorizations() {
     return '/admin/authorizations';
   },
+  globalTaskListeners() {
+    return '/admin/global-task-listeners';
+  },
   operationsLog() {
     return '/admin/operations-log';
   },

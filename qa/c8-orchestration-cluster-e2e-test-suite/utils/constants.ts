@@ -97,6 +97,25 @@ export const createEditedMappingRule = (customId?: string) => {
   };
 };
 
+// Create unique global task listener with optional custom ID
+export const createUniqueGlobalTaskListener = (customId?: string) => {
+  const id = customId || generateUniqueId();
+  return {
+    id: `gtl${id}`,
+    type: `io.camunda.test.listener.${id}`,
+    eventType: 'Creating', // UI display label (t('eventTypeCreating'))
+  };
+};
+
+// Create unique edited global task listener data with optional custom ID
+export const createEditedGlobalTaskListener = (customId?: string) => {
+  const id = customId || generateUniqueId();
+  return {
+    type: `io.camunda.test.listener.edited.${id}`,
+    eventType: 'Completing', // UI display label (t('eventTypeCompleting'))
+  };
+};
+
 // Generic function to create specific test data with shared ID
 
 export const createUserAuthorization = (authRole: {name: string}) => ({
