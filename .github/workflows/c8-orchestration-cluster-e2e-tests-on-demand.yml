@@ -257,7 +257,7 @@ jobs:
         uses: ./.github/actions/observe-build-status
         with:
           build_status: ${{ job.status }}
-          job_name: ${{ github.job }}
+          job_name: ${{ format('{0} (Mode {1})', github.job, matrix.camunda_mode) }}
           secret_vault_address: ${{ secrets.VAULT_ADDR }}
           secret_vault_roleId: ${{ secrets.VAULT_ROLE_ID }}
           secret_vault_secretId: ${{ secrets.VAULT_SECRET_ID }}
@@ -275,6 +275,7 @@ jobs:
         camunda_mode: ${{ fromJSON( (needs.validate-branch.outputs.base == 'stable/8.9' || needs.validate-branch.outputs.base == 'main') && '["profiles","all-in-one"]' || '["profiles"]' ) }}
     steps:
       - name: Print input and base branch
+        shell: bash
         run: |
           echo "Input branch: ${{ github.event.inputs.branch }}"
           echo "Base branch: ${{ needs.validate-branch.outputs.base }}"
@@ -448,7 +449,7 @@ jobs:
         uses: ./.github/actions/observe-build-status
         with:
           build_status: ${{ job.status }}
-          job_name: ${{ github.job }}
+          job_name: ${{ format('{0} (Mode {1})', github.job, matrix.camunda_mode) }}
           secret_vault_address: ${{ secrets.VAULT_ADDR }}
           secret_vault_roleId: ${{ secrets.VAULT_ROLE_ID }}
           secret_vault_secretId: ${{ secrets.VAULT_SECRET_ID }}

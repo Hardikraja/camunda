@@ -101,10 +101,11 @@ services:
     environment:
       - "JAVA_TOOL_OPTIONS=-Xms512m -Xmx1g"
       - ZEEBE_BROKER_NETWORK_HOST=camunda
-      # Conditionally set CAMUNDA_MODE or SPRING_PROFILES_ACTIVE
-      # If CAMUNDA_MODE is set, use it; otherwise use SPRING_PROFILES_ACTIVE
+      # CAMUNDA_MODE can be set externally to control the runtime mode
       - CAMUNDA_MODE=${CAMUNDA_MODE:-}
-      - SPRING_PROFILES_ACTIVE=${CAMUNDA_MODE:+e2e-test,consolidated-auth}${CAMUNDA_MODE:-e2e-test,consolidated-auth,tasklist,broker,operate,admin}
+      # Default Spring profiles for the e2e orchestration cluster test suite.
+      # Can be overridden by setting SPRING_PROFILES_ACTIVE externally.
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-e2e-test,consolidated-auth,tasklist,broker,operate,admin}
       - CAMUNDA_SECURITY_AUTHENTICATION_UNPROTECTEDAPI=false
       - CAMUNDA_SECURITY_AUTHORIZATIONS_ENABLED=true
       - CAMUNDA_SECURITY_AUTHENTICATION_METHOD=BASIC
