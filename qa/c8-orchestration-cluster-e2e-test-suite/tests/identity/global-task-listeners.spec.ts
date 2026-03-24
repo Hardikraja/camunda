@@ -90,6 +90,56 @@ test.describe.serial('global task listeners CRUD', () => {
     await expect(item).toBeVisible();
   });
 
+  test('rejects creating a duplicate global task listener', async ({
+    page,
+    identityGlobalTaskListenersPage,
+  }) => {
+    // given: NEW_LISTENER already exists from the previous test
+    await identityGlobalTaskListenersPage.createGlobalTaskListenerButton.click();
+    await expect(
+      identityGlobalTaskListenersPage.createGlobalTaskListenerModal,
+    ).toBeVisible();
+
+    // when: submitting with the same ID as an existing listener
+    await identityGlobalTaskListenersPage.createGlobalTaskListenerIdField.fill(
+      NEW_LISTENER.id,
+    );
+    await identityGlobalTaskListenersPage.createGlobalTaskListenerTypeField.fill(
+      NEW_LISTENER.type,
+    );
+    await identityGlobalTaskListenersPage.createGlobalTaskListenerTypeField.blur();
+    const createEventTypeToggle =
+      identityGlobalTaskListenersPage.createGlobalTaskListenerModal.locator(
+        '#event-type-multiselect button',
+      );
+    await createEventTypeToggle.click();
+    const createEventTypeMenu =
+      identityGlobalTaskListenersPage.createGlobalTaskListenerModal.locator(
+        '#event-type-multiselect .cds--list-box__menu',
+      );
+    await expect(createEventTypeMenu).toBeVisible();
+    await page
+      .locator('[role="option"]', {hasText: NEW_LISTENER.eventType})
+      .click();
+    await identityGlobalTaskListenersPage.createGlobalTaskListenerModalCreateButton.click();
+
+    // then: modal remains open and an inline error notification is shown
+    await expect(
+      identityGlobalTaskListenersPage.createGlobalTaskListenerModal,
+    ).toBeVisible();
+    await expect(
+      identityGlobalTaskListenersPage.createGlobalTaskListenerModal.locator(
+        '[role="alert"]',
+      ),
+    ).toBeVisible();
+
+    // clean up: dismiss the modal so subsequent tests start from a clean state
+    await identityGlobalTaskListenersPage.createGlobalTaskListenerModalCancelButton.click();
+    await expect(
+      identityGlobalTaskListenersPage.createGlobalTaskListenerModal,
+    ).toBeHidden();
+  });
+
   test('edits a global task listener', async ({
     page,
     identityGlobalTaskListenersPage,
