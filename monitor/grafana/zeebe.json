@@ -8983,7 +8983,7 @@
             "type": "prometheus",
             "uid": "${DS_PROMETHEUS}"
           },
-          "description": "Shows the execution time of a process instance. This means the time (latency) between creating the instance and completing it.",
+          "description": "Shows the execution time of a process instance. This means the time (latency) between creating the instance and completing it. This metric is only tracked in memory, therefore if the PI was started before the last broker restart it wont be included in the metric.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -9104,6 +9104,18 @@
             {
               "datasource": {
                 "type": "prometheus",
+                "uid": "$DS_PROMETHEUS"
+              },
+              "editorMode": "code",
+              "expr": "histogram_quantile(0.90, sum(rate(zeebe_process_instance_execution_time_seconds_bucket{cluster=~\"$cluster\", namespace=~\"$namespace\",pod=~\"$pod\", partition=~\"$partition\"}[$__rate_interval])) by (le))",
+              "instant": false,
+              "legendFormat": "quantile-90th",
+              "range": true,
+              "refId": "D"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
                 "uid": "${DS_PROMETHEUS}"
               },
               "editorMode": "code",
@@ -9112,7 +9124,7 @@
               "instant": false,
               "legendFormat": "quantile-99th",
               "range": true,
-              "refId": "D"
+              "refId": "E"
             }
           ],
           "title": "Process Instance Execution Time (avg)",
@@ -9123,7 +9135,7 @@
             "type": "prometheus",
             "uid": "$DS_PROMETHEUS"
           },
-          "description": "Shows the time (latency) between creating the job and activating it.",
+          "description": "Shows the time (latency) between creating the job and activating it. This metric is only tracked in memory, therefore if the PI was started before the last broker restart it wont be included in the metric.",
           "fieldConfig": {
             "defaults": {
               "custom": {
