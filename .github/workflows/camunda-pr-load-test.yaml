@@ -28,6 +28,7 @@ jobs:
     permissions: {}
     outputs:
       sanitized-name: ${{ steps.compute-namespace.outputs.namespace }}
+      legacy-namespace: ${{ steps.compute-namespace.outputs.legacy_namespace }}
     steps:
       - id: compute-namespace
         name: Compute safe namespace from branch name
@@ -46,6 +47,19 @@ jobs:
           # This keeps Kubernetes service names well within the 63-char limit
           namespace="c8-${prefix}-${hash}"
           echo "namespace=${namespace}" >> "$GITHUB_OUTPUT"
+
+          # Also compute the legacy namespace name used by the old sanitize-branch-name action
+          # (camunda/infra-global-github-actions/sanitize-branch-name@main with max_length=50).
+          # This is needed by delete-benchmark to clean up namespaces deployed before this change.
+          # Legacy logic: lowercase, remove dependabot/renovate/-deploy prefixes, replace non-alphanumeric
+          # with hyphens, truncate to 50 chars, strip trailing hyphens, then prepend "c8-".
+          legacy_sanitized=$(printf '%s' "$BRANCH" \
+            | tr '[:upper:]' '[:lower:]' \
+            | sed 's|dependabot/||g; s|renovate/||g; s/-deploy//g' \
+            | sed 's/[^a-z0-9]/-/g' \
+            | cut -c1-50 \
+            | sed 's/-*$//')
+          echo "legacy_namespace=c8-${legacy_sanitized}" >> "$GITHUB_OUTPUT"
       - name: Observe build status
         if: always()
         continue-on-error: true
@@ -203,15 +217,18 @@ jobs:
           kubernetes-cluster: ${{ env.CLUSTER }}
 
       - name: Delete benchmarks
+        env:
+          CURRENT_NS: ${{ needs.sanitize-branch-name.outputs.sanitized-name }}
+          LEGACY_NS: ${{ needs.sanitize-branch-name.outputs.legacy-namespace }}
         run: |
-          # Delete the namespace computed from the current naming scheme.
-          # --ignore-not-found handles the case where the namespace does not exist
-          # (e.g. it was never created, or it was already cleaned up by the daily TTL job).
-          # Note: if a PR was previously deployed with the legacy naming scheme and the
-          # namespace name has changed, the old namespace will be removed by the daily TTL
-          # cleanup (camunda-load-test-clean-up.yml), which selects namespaces by the
-          # deadline-date label regardless of name.
-          kubectl delete ns "${{ needs.sanitize-branch-name.outputs.sanitized-name }}" --ignore-not-found
+          # Delete the namespace under the current naming scheme.
+          kubectl delete ns "$CURRENT_NS" --ignore-not-found
+          # Also delete the namespace under the legacy naming scheme (used before the hash-based
+          # scheme was introduced), in case the PR was deployed before this change was merged.
+          # Skip if the names are identical to avoid a redundant no-op call.
+          if [[ "$LEGACY_NS" != "$CURRENT_NS" ]]; then
+            kubectl delete ns "$LEGACY_NS" --ignore-not-found
+          fi
       - name: Observe build status
         if: always()
         continue-on-error: true
