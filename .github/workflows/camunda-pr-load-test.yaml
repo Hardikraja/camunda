@@ -35,12 +35,13 @@ jobs:
           BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
           # Sanitize: lowercase, replace non-alphanumeric chars with hyphens, collapse and trim
-          sanitized=$(echo "$BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/-\+/-/g' | sed 's/^-//' | sed 's/-$//')
+          # Use printf instead of echo to avoid misinterpreting branch names starting with -n/-e as flags
+          sanitized=$(printf '%s' "$BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/-\+/-/g' | sed 's/^-//' | sed 's/-$//')
           # Take first 20 chars of sanitized name, trimming any trailing hyphen
           prefix="${sanitized:0:20}"
           prefix="${prefix%-}"
           # Compute a 7-char hash from the full sanitized name to ensure uniqueness
-          hash=$(echo -n "$sanitized" | sha256sum | cut -c1-7)
+          hash=$(printf '%s' "$sanitized" | sha256sum | cut -c1-7)
           # Compose namespace: c8- (3) + prefix (≤20) + - (1) + hash (7) = ≤31 chars total
           # This keeps Kubernetes service names well within the 63-char limit
           namespace="c8-${prefix}-${hash}"
@@ -203,7 +204,14 @@ jobs:
 
       - name: Delete benchmarks
         run: |
-          kubectl delete ns "${{ needs.sanitize-branch-name.outputs.sanitized-name }}"
+          # Delete the namespace computed from the current naming scheme.
+          # --ignore-not-found handles the case where the namespace does not exist
+          # (e.g. it was never created, or it was already cleaned up by the daily TTL job).
+          # Note: if a PR was previously deployed with the legacy naming scheme and the
+          # namespace name has changed, the old namespace will be removed by the daily TTL
+          # cleanup (camunda-load-test-clean-up.yml), which selects namespaces by the
+          # deadline-date label regardless of name.
+          kubectl delete ns "${{ needs.sanitize-branch-name.outputs.sanitized-name }}" --ignore-not-found
       - name: Observe build status
         if: always()
         continue-on-error: true
