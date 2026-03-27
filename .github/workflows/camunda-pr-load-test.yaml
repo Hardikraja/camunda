@@ -28,7 +28,7 @@ jobs:
     permissions: {}
     outputs:
       sanitized-name: ${{ steps.compute-namespace.outputs.namespace }}
-      legacy-namespace: ${{ steps.compute-namespace.outputs.legacy_namespace }}
+      legacy-namespace: c8-${{ steps.legacy-sanitize.outputs.branch_name }}
     steps:
       - id: compute-namespace
         name: Compute safe namespace from branch name
@@ -47,19 +47,13 @@ jobs:
           # This keeps Kubernetes service names well within the 63-char limit
           namespace="c8-${prefix}-${hash}"
           echo "namespace=${namespace}" >> "$GITHUB_OUTPUT"
-
-          # Also compute the legacy namespace name used by the old sanitize-branch-name action
-          # (camunda/infra-global-github-actions/sanitize-branch-name@main with max_length=50).
-          # This is needed by delete-benchmark to clean up namespaces deployed before this change.
-          # Legacy logic: lowercase, remove dependabot/renovate/-deploy prefixes, replace non-alphanumeric
-          # with hyphens, truncate to 50 chars, strip trailing hyphens, then prepend "c8-".
-          legacy_sanitized=$(printf '%s' "$BRANCH" \
-            | tr '[:upper:]' '[:lower:]' \
-            | sed 's|dependabot/||g; s|renovate/||g; s/-deploy//g' \
-            | sed 's/[^a-z0-9]/-/g' \
-            | cut -c1-50 \
-            | sed 's/-*$//')
-          echo "legacy_namespace=c8-${legacy_sanitized}" >> "$GITHUB_OUTPUT"
+      # Compute the legacy namespace using the same external action that was previously used,
+      # so delete-benchmark can clean up namespaces deployed before the hash-based scheme.
+      - id: legacy-sanitize
+        uses: camunda/infra-global-github-actions/sanitize-branch-name@main
+        with:
+          branch: ${{ github.event.pull_request.head.ref }}
+          max_length: 50
       - name: Observe build status
         if: always()
         continue-on-error: true
