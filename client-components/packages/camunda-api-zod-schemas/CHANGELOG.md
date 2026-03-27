@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.0.55
+
+### 🚀 Enhancements
+
+- Copy 8.9 defs into 8.10 ([#49454](https://github.com/camunda/camunda/issues/49454))
+
+### ❤️ Contributors
+
+- Vinicius Goulart ([@vsgoulart](https://github.com/vsgoulart))
+
+## v0.0.54
+
+### 🚀 Enhancements
+
+- Updated audit-log schema to support `processDefinitionId` filtering. ([#49391](https://github.com/camunda/camunda/issues/49391))
+
+### ❤️ Contributors
+
+- Daniel Kelemen ([@danielkelemen](https://github.com/danielkelemen))
+
 ## v0.0.53
 
 ### 🚀 Enhancements

@@ -15,8 +15,8 @@
  */
 package io.camunda.process.test.impl.judge;
 
-import static io.camunda.process.test.impl.judge.ModelBuilderSupport.hasText;
-import static io.camunda.process.test.impl.judge.ModelBuilderSupport.require;
+import static io.camunda.process.test.impl.ModelBuilderSupport.hasText;
+import static io.camunda.process.test.impl.ModelBuilderSupport.require;
 
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
@@ -26,19 +26,26 @@ import org.slf4j.LoggerFactory;
 
 final class OpenAiCompatibleChatModelBuilder {
 
+  public static final String OPENAI_COMPATIBLE = "openai-compatible";
   private static final Logger LOG = LoggerFactory.getLogger(OpenAiCompatibleChatModelBuilder.class);
 
   private OpenAiCompatibleChatModelBuilder() {}
 
   static ChatModel build(final BaseProviderConfig.OpenAiCompatibleConfig config) {
     LOG.debug("Building OpenAI-compatible chat model");
+    final ChatModel chatModel = build(config, OpenAiChatModel.builder());
+    LOG.debug(
+        "Successfully built OpenAI-compatible chat model with baseUrl '{}' and model '{}'",
+        config.getBaseUrl(),
+        config.getModel());
+    return chatModel;
+  }
 
-    final String model = require(config.getModel(), "model", "openai-compatible");
-    final String baseUrl = require(config.getBaseUrl(), "baseUrl", "openai-compatible");
-
-    final OpenAiChatModel.OpenAiChatModelBuilder builder =
-        OpenAiChatModel.builder().baseUrl(baseUrl).modelName(model);
-
+  static ChatModel build(
+      final BaseProviderConfig.OpenAiCompatibleConfig config,
+      final OpenAiChatModel.OpenAiChatModelBuilder builder) {
+    builder.baseUrl(require(config.getBaseUrl(), "baseUrl", OPENAI_COMPATIBLE));
+    builder.modelName(require(config.getModel(), "model", OPENAI_COMPATIBLE));
     final Map<String, String> headers = config.getHeaders();
     final boolean hasAuthorizationHeader =
         headers != null && headers.keySet().stream().anyMatch("Authorization"::equalsIgnoreCase);
@@ -50,11 +57,9 @@ final class OpenAiCompatibleChatModelBuilder {
         builder.apiKey(config.getApiKey().trim());
       }
     }
-
     if (headers != null && !headers.isEmpty()) {
       builder.customHeaders(headers);
     }
-
     if (config.getTimeout() != null) {
       LOG.debug("Setting timeout to {}", config.getTimeout());
       builder.timeout(config.getTimeout());
@@ -63,12 +68,6 @@ final class OpenAiCompatibleChatModelBuilder {
       LOG.debug("Setting temperature to {}", config.getTemperature());
       builder.temperature(config.getTemperature());
     }
-
-    final ChatModel chatModel = builder.build();
-    LOG.debug(
-        "Successfully built OpenAI-compatible chat model with baseUrl '{}' and model '{}'",
-        baseUrl,
-        model);
-    return chatModel;
+    return builder.build();
   }
 }

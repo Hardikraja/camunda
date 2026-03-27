@@ -20,6 +20,8 @@ export {createTenantAndStoreResponseFields} from './tenant-requestHelpers';
 export {assignGroupsToTenant} from './tenant-requestHelpers';
 export {assignRolesToTenant} from './tenant-requestHelpers';
 export {assertRolesInResponse} from './tenant-requestHelpers';
+export {assignMappingRulesToTenant} from './tenant-requestHelpers';
+export {assertMappingRulesInResponse} from './tenant-requestHelpers';
 export {createTenant} from './tenant-requestHelpers';
 export {assignClientsToTenant} from './tenant-requestHelpers';
 export {assignUsersToTenant} from './tenant-requestHelpers';
@@ -84,3 +86,8 @@ export {
   searchCorrelatedMessageSubscriptions,
   CORRELATED_MESSAGE_SUBSCRIPTION_SEARCH_ENDPOINT,
 } from './message-requestHelpers';
+export {
+  createGlobalTaskListener,
+  type GlobalTaskListenerBody,
+} from './global-task-listener-requestHelpers';
+export {type AuditLog} from './audit-log-requestHelpers';

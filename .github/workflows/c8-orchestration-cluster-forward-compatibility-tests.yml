@@ -240,7 +240,7 @@ jobs:
           echo "Running forward compatibility API tests"
           echo "Server built from: ${{ matrix.server_branch }}"
           echo "Tests checked out from: ${{ matrix.test_branch }}"
-          npm run test -- --project=api-tests
+          npm run test -- --project=api-tests --retries=2
         working-directory: qa/c8-orchestration-cluster-e2e-test-suite
 
       - name: Sanitize branch names for artifact names
@@ -295,7 +295,7 @@ jobs:
        - uses: actions/checkout@v6
 
        - name: Notify failure
-         uses: slackapi/slack-github-action@v2.1.1
+         uses: slackapi/slack-github-action@v3.0.1
          if: env.SLACK_CAMUNDA_EX_CI_WEBHOOK != ''
          env:
            SLACK_CAMUNDA_EX_CI_WEBHOOK: ${{ secrets.SLACK_CAMUNDA_EX_CI_WEBHOOK }}

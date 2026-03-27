@@ -83,7 +83,7 @@ jobs:
       # renovate: datasource=github-releases depName=rhysd/actionlint
       ACTIONLINT_VERSION: '1.7.11'
       # renovate: datasource=github-tags depName=open-policy-agent/conftest
-      CONFTEST_VERSION: '0.67.0'
+      CONFTEST_VERSION: '0.67.1'
     steps:
       - uses: actions/checkout@v6
       - uses: camunda/infra-global-github-actions/actionlint@main
@@ -1387,7 +1387,7 @@ jobs:
           pr-number: ${{ github.event.pull_request.number }}
           branch-name: ${{ github.event.pull_request.head.ref }}
       - name: Delete matrix job generated artifacts
-        uses: geekyeggo/delete-artifact@v5
+        uses: geekyeggo/delete-artifact@v6
         with:
           name: |
             zeebe-unit-tests-*

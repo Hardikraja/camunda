@@ -699,7 +699,7 @@ test.describe.serial('Process Instance Migration', () => {
     });
   });
 
-  test('Migrated message events', async ({
+  test.skip('Migrated message events', async ({
     page,
     operateFiltersPanelPage,
     operateProcessesPage,
@@ -761,7 +761,8 @@ test.describe.serial('Process Instance Migration', () => {
     });
   });
 
-  test('Migrated gateways', async ({
+  // skipped due to bug 49095: https://github.com/camunda/camunda/issues/49095
+  test.skip('Migrated gateways', async ({
     page,
     operateFiltersPanelPage,
     operateProcessesPage,

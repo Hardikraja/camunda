@@ -46,6 +46,7 @@ class UserTaskSearchIT {
   private static Long parentProcessInstanceKey;
   private static Long childProcessInstanceKey;
   private static Long userTaskOverlapKey;
+  private static OffsetDateTime defaultProcessTaskDate;
   private static final String LARGE_VAR_NAME = "largeVariable";
   private static final String LARGE_VALUE = "b".repeat(DEFAULT_VARIABLE_SIZE_THRESHOLD + 10);
 
@@ -54,7 +55,7 @@ class UserTaskSearchIT {
   @BeforeAll
   static void beforeAll() {
 
-    deployProcess("process", "simple.bpmn", "test", "", "");
+    defaultProcessTaskDate = deployProcess("process", "simple.bpmn", "test", "", "");
     deployProcess("process-2", "simple-2.bpmn", "test-2", "group", "user");
     deployProcess("process-3", "simple-3.bpmn", "test-3", "", "", "30");
     deployProcessFromResourcePath("/process/bpm_variable_test.bpmn", "bpm_variable_test.bpmn");
@@ -670,11 +671,17 @@ class UserTaskSearchIT {
 
   @Test
   void shouldGetUserTaskByKey() {
-    // when
-    final var result = camundaClient.newUserTaskGetRequest(userTaskKeyTaskAssigned).send().join();
+    // given
+    final var searchResult =
+        camundaClient.newUserTaskSearchRequest().filter(f -> f.elementId("TaskSub")).send().join();
+    assertThat(searchResult.items()).hasSize(1);
+    final var expectedTask = searchResult.items().getFirst();
+
+    // when - retrieve the subprocess task which is in an active state
+    final var result = camundaClient.newUserTaskGetRequest(userTaskSubprocessKey).send().join();
 
     // then
-    assertThat(result.getUserTaskKey()).isEqualTo(userTaskKeyTaskAssigned);
+    assertThat(result).usingRecursiveComparison().isEqualTo(expectedTask);
   }
 
   @Test
@@ -730,6 +737,93 @@ class UserTaskSearchIT {
     assertThat(problemException.code()).isEqualTo(404);
     assertThat(problemException.details().getDetail())
         .contains("User Task with key '%d' not found".formatted(userTaskKey));
+  }
+
+  @Test
+  void shouldReturnEmptyCollectionsNotNullForUserTaskWithoutCandidates() {
+    // given - find a task without candidate groups or users (process "simple.bpmn" has no
+    // candidates)
+    final var result =
+        camundaClient
+            .newUserTaskSearchRequest()
+            .filter(f -> f.bpmnProcessId("process"))
+            .send()
+            .join();
+
+    // then
+    assertThat(result.items()).hasSize(2);
+    assertThat(result.items())
+        .allSatisfy(
+            task -> {
+              assertThat(task.getBpmnProcessId()).isEqualTo("process");
+              assertThat(task.getCandidateGroups()).isEmpty();
+              assertThat(task.getCandidateUsers()).isEmpty();
+              assertThat(task.getCustomHeaders()).isEmpty();
+              assertThat(task.getTags()).isEmpty();
+            });
+  }
+
+  @Test
+  void shouldReturnEmptyCollectionsNotNullWhenGettingUserTaskByKey() {
+    // given - get task by key (process "simple.bpmn" has no candidates)
+    final var searchResult =
+        camundaClient
+            .newUserTaskSearchRequest()
+            .filter(f -> f.bpmnProcessId("process"))
+            .send()
+            .join();
+    assertThat(searchResult.items()).hasSize(2);
+    final var taskKey = searchResult.items().getFirst().getUserTaskKey();
+
+    // when
+    final var result = camundaClient.newUserTaskGetRequest(taskKey).send().join();
+
+    // then
+    assertThat(result.getUserTaskKey()).isEqualTo(taskKey);
+    assertThat(result.getCandidateGroups()).isEmpty();
+    assertThat(result.getCandidateUsers()).isEmpty();
+    assertThat(result.getCustomHeaders()).isEmpty();
+    assertThat(result.getTags()).isEmpty();
+  }
+
+  @Test
+  void shouldReturnNullForOptionalTextFields() {
+    // given - find a task without assignee, formKey, externalFormReference
+    final var result =
+        camundaClient
+            .newUserTaskSearchRequest()
+            .filter(f -> f.bpmnProcessId("process").state(UserTaskState.CREATED))
+            .send()
+            .join();
+
+    // then - assert optional text fields are null (not empty string)
+    assertThat(result.items()).hasSize(1);
+    final var task = result.items().getFirst();
+    assertThat(task.getAssignee()).isNull();
+    assertThat(task.getFormKey()).isNull();
+    assertThat(task.getExternalFormReference()).isNull();
+  }
+
+  @Test
+  void shouldReturnNullOrDefaultForOptionalDateFields() {
+    // given
+    final var result =
+        camundaClient
+            .newUserTaskSearchRequest()
+            .filter(f -> f.bpmnProcessId("process").state(UserTaskState.CREATED))
+            .send()
+            .join();
+
+    // then
+    assertThat(result.items()).isNotEmpty();
+    result
+        .items()
+        .forEach(
+            task -> {
+              assertThat(task.getCompletionDate()).isNull();
+              assertThat(task.getDueDate()).isEqualTo(defaultProcessTaskDate);
+              assertThat(task.getFollowUpDate()).isEqualTo(defaultProcessTaskDate);
+            });
   }
 
   @Test
@@ -1451,7 +1545,7 @@ class UserTaskSearchIT {
             });
   }
 
-  private static void deployProcess(
+  private static OffsetDateTime deployProcess(
       final String processId,
       final String resourceName,
       final String userTaskName,
@@ -1463,6 +1557,7 @@ class UserTaskSearchIT {
 
     final LocalDateTime now = LocalDateTime.now(utcZoneId);
     final LocalDateTime dayBefore = now.minusDays(1);
+    final String taskDate = dayBefore.format(dateFormat);
 
     camundaClient
         .newDeployResourceCommand()
@@ -1471,8 +1566,8 @@ class UserTaskSearchIT {
                 .startEvent()
                 .userTask(userTaskName)
                 .zeebeUserTask()
-                .zeebeDueDate(dayBefore.format(dateFormat))
-                .zeebeFollowUpDate(dayBefore.format(dateFormat))
+                .zeebeDueDate(taskDate)
+                .zeebeFollowUpDate(taskDate)
                 .zeebeCandidateGroups(candidateGroup)
                 .zeebeCandidateUsers(candidateUser)
                 .endEvent()
@@ -1480,9 +1575,11 @@ class UserTaskSearchIT {
             resourceName)
         .send()
         .join();
+
+    return OffsetDateTime.parse(taskDate);
   }
 
-  private static void deployProcess(
+  private static OffsetDateTime deployProcess(
       final String processId,
       final String resourceName,
       final String userTaskName,
@@ -1495,6 +1592,7 @@ class UserTaskSearchIT {
 
     final LocalDateTime now = LocalDateTime.now(utcZoneId);
     final LocalDateTime dayBefore = now.minusDays(1);
+    final String taskDate = dayBefore.format(dateFormat);
 
     camundaClient
         .newDeployResourceCommand()
@@ -1504,8 +1602,8 @@ class UserTaskSearchIT {
                 .userTask(userTaskName)
                 .zeebeTaskPriority(priority)
                 .zeebeUserTask()
-                .zeebeDueDate(dayBefore.format(dateFormat))
-                .zeebeFollowUpDate(dayBefore.format(dateFormat))
+                .zeebeDueDate(taskDate)
+                .zeebeFollowUpDate(taskDate)
                 .zeebeCandidateGroups(candidateGroup)
                 .zeebeCandidateUsers(candidateUser)
                 .endEvent()
@@ -1513,6 +1611,8 @@ class UserTaskSearchIT {
             resourceName)
         .send()
         .join();
+
+    return OffsetDateTime.parse(taskDate);
   }
 
   private static void deployProcessFromResourcePath(
