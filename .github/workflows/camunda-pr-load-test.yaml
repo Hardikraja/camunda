@@ -223,11 +223,13 @@ jobs:
         run: |
           # Delete the namespace under the current naming scheme.
           kubectl delete ns "$CURRENT_NS" --ignore-not-found
-          # Also delete the namespace under the legacy naming scheme (used before the hash-based
-          # scheme was introduced), in case the PR was deployed before this change was merged.
-          # Skip if the names are identical to avoid a redundant no-op call.
+          # Also attempt to delete the namespace under the legacy naming scheme (used before the
+          # hash-based scheme was introduced), in case the PR was deployed before this change.
+          # This is best-effort (|| true): --ignore-not-found only suppresses "Not Found" errors,
+          # but K8s may return "Forbidden" for non-existent namespaces when the service account
+          # lacks cluster-wide namespace-delete permissions.
           if [[ "$LEGACY_NS" != "$CURRENT_NS" ]]; then
-            kubectl delete ns "$LEGACY_NS" --ignore-not-found
+            kubectl delete ns "$LEGACY_NS" --ignore-not-found || true
           fi
       - name: Observe build status
         if: always()
