@@ -395,8 +395,51 @@ public class EventAppliersTest {
 
     private record RegisteredApplier(Intent intent, int version, TypedEventApplier applier) {}
 
+    /**
+     * Utility to update all golden files at once. Run from an IDE or command line.
+     *
+     * <p>Usage: Run {@code GoldenFileUpdater.main()} — it iterates all registered appliers and
+     * copies each source file to its golden file (or creates an empty golden file for NOOPs).
+     */
+    public static class GoldenFileUpdater {
 
+      public static void main(final String[] args) throws IOException {
+        System.out.println(
             """
+            WARNING: This overwrites ALL golden files unconditionally.
+            Only run this after reviewing each failing test case.
+            Updating golden files for changed appliers may hide breaking changes.""");
+
+        final var eventAppliers = new EventAppliers();
+        eventAppliers.registerEventAppliers(mock(MutableProcessingState.class));
+
+        final var goldenDir = Paths.get(GOLDEN_FILES_FOLDER);
+        Files.createDirectories(goldenDir);
+
+        for (final var intentEntry : eventAppliers.getRegisteredAppliers().entrySet()) {
+          final var intent = intentEntry.getKey();
+          final var valueTypeName = intent.getClass().getSimpleName().replace("Intent", "");
+
+          for (final var applierEntry : intentEntry.getValue().entrySet()) {
+            final var version = applierEntry.getKey();
+            final var applier = applierEntry.getValue();
+            final var applierClassName = applier.getClass().getSimpleName();
+
+            final var goldenFilename = "%s_%s_v%s.golden".formatted(valueTypeName, intent, version);
+            final var goldenFilePath = goldenDir.resolve(goldenFilename);
+
+            final var sourcePath =
+                Paths.get("%s/%s.java".formatted(EVENT_APPLIERS_FOLDER, applierClassName));
+            if (Files.exists(sourcePath)) {
+              Files.copy(
+                  sourcePath, goldenFilePath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+              System.out.printf("Copied %s.java -> %s%n", applierClassName, goldenFilename);
+            } else {
+              Files.writeString(goldenFilePath, "");
+              System.out.printf("Created empty %s (NOOP applier)%n", goldenFilename);
+            }
+          }
+        }
       }
     }
   }
