@@ -40,7 +40,7 @@ jobs:
         run: npm run start:visual-regression &
       - name: Update snapshots
         working-directory: ./operate/client
-        run: npm run test:visual --update-snapshots
+        run: npm run test:visual -- --update-snapshots
       - name: Commit screenshots
         uses: stefanzweifel/git-auto-commit-action@v7
         with:

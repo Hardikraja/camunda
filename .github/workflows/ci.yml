@@ -1499,6 +1499,7 @@ jobs:
                 body,
               });
             }
+      - uses: actions/checkout@v6
       - name: Observe build status
         if: always()
         continue-on-error: true
