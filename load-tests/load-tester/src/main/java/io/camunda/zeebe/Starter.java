@@ -66,8 +66,7 @@ public class Starter extends App {
   private final AtomicLong lastProcessInstanceKey = new AtomicLong(0);
   private final AtomicReference<Instant> lastProcessInstanceKeyTimestamp =
       new AtomicReference<>(Instant.now());
-
-  // Optimize evaluation meter (optional)
+  // Optimize evaluation meter
   private OptimizeEvaluationMeter optimizeEvaluationMeter;
 
   Starter(final AppCfg config) {
@@ -81,16 +80,10 @@ public class Starter extends App {
         MicrometerUtil.buildTimer(StarterLatencyMetricsDoc.RESPONSE_LATENCY).register(registry);
 
     final CamundaClient client = createCamundaClient();
-    if (config.isMonitorDataAvailability()) {
-      setupDataAvailabilityMeter(client);
-    }
 
     // init - check for topology and deploy process
     printTopology(client);
-    deployProcess(client, starterCfg);
 
-    // init - check for topology and deploy process
-    printTopology(client);
     if (config.isMonitorDataAvailability()) {
       setupDataAvailabilityMeter(client);
     }

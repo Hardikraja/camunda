@@ -57,7 +57,7 @@ if [[ "$secondaryStorage" != "elasticsearch" && "$secondaryStorage" != "opensear
 fi
 
 # Validate TTL value
-ttl_days="${3:-2}"
+ttl_days="${3:-1}"
 numberRegex='^[0-9]+$'
 if ! [[ $ttl_days =~ $numberRegex ]] ; then
    echo "Error: TTL '$ttl_days' is not a number"
@@ -129,9 +129,6 @@ cd $namespace
 # Update Makefile to use the namespace and secondary storage
 sed_inplace "s/__NAMESPACE__/$namespace/" Makefile
 sed_inplace "s/__NAMESPACE__/$namespace/" load-test-values.yaml
-sed_inplace "s/__NAMESPACE__/$namespace/" es-metrics-cronjob.yaml
-sed_inplace "s/__NAMESPACE__/$namespace/g" values-optimize-starter.yaml
-sed_inplace "s/__NAMESPACE__/$namespace/g" camunda-platform-values.yaml
 sed_inplace "s/__STORAGE_TYPE__/$secondaryStorage/" Makefile
 sed_inplace "s/__ENABLE_OPTIMIZE__/$enable_optimize/" Makefile
 

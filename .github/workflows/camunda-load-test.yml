@@ -530,7 +530,8 @@ jobs:
             secondary_storage=${{ inputs.secondary-storage-type }} \
             enable_optimize=${{ inputs.enable-optimize }} \
             additional_platform_configuration="$additional_platform_config" \
-            additional_load_test_configuration="$load_test_config"
+            additional_load_test_configuration="$load_test_config" \
+            enable_optimize_report_metric=${{ inputs.enable-optimize-report-metric }}
       - name: Summarize platform deployment
         if: success()
         run: |
