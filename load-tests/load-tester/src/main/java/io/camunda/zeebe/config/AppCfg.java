@@ -24,6 +24,7 @@ public class AppCfg {
   private boolean monitorDataAvailability = true;
   private Duration monitorDataAvailabilityInterval = Duration.ofMillis(250);
   private boolean performReadBenchmarks = false;
+  private boolean enableOptimizeReportMetric = false;
 
   private String disabledQueries = "";
 
@@ -131,5 +132,13 @@ public class AppCfg {
         .map(String::trim)
         .filter(s -> !s.isBlank())
         .toList();
+  }
+
+  public boolean isEnableOptimizeReportMetric() {
+    return enableOptimizeReportMetric;
+  }
+
+  public void setEnableOptimizeReportMetric(final boolean enableOptimizeReportMetric) {
+    this.enableOptimizeReportMetric = enableOptimizeReportMetric;
   }
 }

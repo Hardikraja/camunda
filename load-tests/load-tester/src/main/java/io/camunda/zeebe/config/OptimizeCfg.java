@@ -20,6 +20,8 @@ public final class OptimizeCfg {
   private String processDefinitionKey;
   private int evaluationIntervalSeconds = 60; // Default: 10 minutes
   private int durationLimit = 0; // 0 means run forever
+  private int authRetryMaxAttempts = 30;
+  private int authRetryDelaySeconds = 10;
 
   public String getBaseUrl() {
     return baseUrl;
@@ -115,5 +117,21 @@ public final class OptimizeCfg {
 
   public void setProcessDefinitionKey(final String processDefinitionKey) {
     this.processDefinitionKey = processDefinitionKey;
+  }
+
+  public int getAuthRetryMaxAttempts() {
+    return authRetryMaxAttempts;
+  }
+
+  public void setAuthRetryMaxAttempts(final int authRetryMaxAttempts) {
+    this.authRetryMaxAttempts = authRetryMaxAttempts;
+  }
+
+  public int getAuthRetryDelaySeconds() {
+    return authRetryDelaySeconds;
+  }
+
+  public void setAuthRetryDelaySeconds(final int authRetryDelaySeconds) {
+    this.authRetryDelaySeconds = authRetryDelaySeconds;
   }
 }
