@@ -187,7 +187,7 @@ jobs:
           secret_vault_address: ${{ secrets.VAULT_ADDR }}
           secret_vault_roleId: ${{ secrets.VAULT_ROLE_ID }}
           secret_vault_secretId: ${{ secrets.VAULT_SECRET_ID }}
-          
+
   validate-pom-metadata:
     if: needs.detect-changes.outputs.validate-pom-metadata == 'true'
     name: "Lint / Flattened POM Metadata"
@@ -496,8 +496,8 @@ jobs:
               "maven-build-threads": 2,
               "maven-test-fork-count": 3,
               "runs-on": "gcp-perf-core-8-default",
-              "docker-repository": "localhost:5000/camunda/zeebe",
-              "docker-file": "Dockerfile",
+              "docker-repository": "localhost:5000/camunda/camunda",
+              "docker-file": "camunda.Dockerfile",
               "owner": "QA",
               "module": "QA",
               "stressRun": 1
@@ -509,8 +509,8 @@ jobs:
               "maven-build-threads": 2,
               "maven-test-fork-count": 7,
               "runs-on": "gcp-perf-core-16-longrunning",
-              "docker-repository": "localhost:5000/camunda/zeebe",
-              "docker-file": "Dockerfile",
+              "docker-repository": "localhost:5000/camunda/camunda",
+              "docker-file": "camunda.Dockerfile",
               "owner": "Distributed Platform",
               "module": "Zeebe",
               "stressRun": 1
@@ -522,8 +522,8 @@ jobs:
               "maven-build-threads": 2,
               "maven-test-fork-count": 7,
               "runs-on": "gcp-perf-core-16-longrunning",
-              "docker-repository": "localhost:5000/camunda/zeebe",
-              "docker-file": "Dockerfile",
+              "docker-repository": "localhost:5000/camunda/camunda",
+              "docker-file": "camunda.Dockerfile",
               "owner": "Core Features",
               "module": "Zeebe",
               "stressRun": 1
@@ -535,8 +535,8 @@ jobs:
               "maven-build-threads": 2,
               "maven-test-fork-count": 7,
               "runs-on": "gcp-perf-core-16-longrunning",
-              "docker-repository": "localhost:5000/camunda/zeebe",
-              "docker-file": "Dockerfile",
+              "docker-repository": "localhost:5000/camunda/camunda",
+              "docker-file": "camunda.Dockerfile",
               "owner": "DataLayer",
               "module": "Zeebe",
               "stressRun": 1
@@ -574,8 +574,8 @@ jobs:
               "maven-build-threads": 1,
               "maven-test-fork-count": 10,
               "runs-on": "gcp-perf-core-16-default",
-              "docker-repository": "localhost:5000/camunda/zeebe",
-              "docker-file": "Dockerfile",
+              "docker-repository": "localhost:5000/camunda/camunda",
+              "docker-file": "camunda.Dockerfile",
               "owner": "Distributed Platform",
               "module": "Zeebe",
               "test-filter": "io.camunda.zeebe.it.cluster.**,!io.camunda.zeebe.it.cluster.clustering.dynamic.ScaleUpPartitionsTest,!**/*${DOLLAR}*.java",
@@ -601,8 +601,8 @@ jobs:
               "maven-build-threads": 1,
               "maven-test-fork-count": 10,
               "runs-on": "gcp-perf-core-16-default",
-              "docker-repository": "localhost:5000/camunda/zeebe",
-              "docker-file": "Dockerfile",
+              "docker-repository": "localhost:5000/camunda/camunda",
+              "docker-file": "camunda.Dockerfile",
               "owner": "General",
               "module": "Zeebe",
               "test-filter": "!io.camunda.zeebe.it.engine.**,!io.camunda.zeebe.it.cluster.**,!**/*${DOLLAR}*.java",
@@ -628,8 +628,8 @@ jobs:
               "maven-build-threads": 1,
               "maven-test-fork-count": 10,
               "runs-on": "gcp-perf-core-8-default",
-              "docker-repository": "localhost:5000/camunda/zeebe",
-              "docker-file": "Dockerfile",
+              "docker-repository": "localhost:5000/camunda/camunda",
+              "docker-file": "camunda.Dockerfile",
               "owner": "Core Features",
               "module": "Zeebe",
               "stressRun": 1
