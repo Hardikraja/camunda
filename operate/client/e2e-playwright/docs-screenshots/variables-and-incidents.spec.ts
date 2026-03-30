@@ -154,9 +154,7 @@ test.describe('variables and incidents', () => {
 
     await editVariableButton.click();
 
-    const editableField = page.getByRole('textbox', {
-      name: /value/i,
-    });
+    const editableField = processInstancePage.variablesEditor;
     await editableField.clear();
     await editableField.fill('99');
 
