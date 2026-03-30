@@ -292,11 +292,6 @@
 
     <dependency>
       <groupId>io.camunda</groupId>
-      <artifactId>operate-webapp</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>io.camunda</groupId>
       <artifactId>identity-webjar</artifactId>
     </dependency>
 
@@ -1057,8 +1052,6 @@
             <dependency>io.camunda:identity-webjar</dependency>
 
             <dependency>io.camunda:operate-data-generator</dependency>
-            <dependency>io.camunda:operate-webapp</dependency>
-
             <dependency>io.camunda:tasklist-data-generator</dependency>
 
             <!-- Used to parse PKCS1 certificates -->
