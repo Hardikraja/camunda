@@ -311,7 +311,11 @@ export const AddModal: FC<UseEntityModalProps<ResourceType>> = ({
                   Select at least one permission. All available resource
                   permissions can be found{" "}
                   <DocumentationLink
+<<<<<<< HEAD
                     path="/docs/components/concepts/access-control/authorizations/#resources-and-permissions"
+=======
+                    path="/components/concepts/access-control/authorizations/#available-resources"
+>>>>>>> 45a9882c (fix: incorrect docs link)
                     withIcon
                   >
                     here
