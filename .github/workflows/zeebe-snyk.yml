@@ -38,9 +38,6 @@ on:
         required: false
         type: string
   workflow_call:
-    secrets:
-      SNYK_TOKEN:
-        required: true
     inputs:
       version:
         description: The project version; defaults to the version as defined by the root POM
@@ -94,6 +91,17 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.ref }}
+      - name: Import Secrets
+        id: snyk-secret
+        uses: hashicorp/vault-action@v3.4.0
+        with:
+          url: ${{ secrets.VAULT_ADDR }}
+          method: approle
+          roleId: ${{ secrets.VAULT_ROLE_ID }}
+          secretId: ${{ secrets.VAULT_SECRET_ID }}
+          exportEnv: false
+          secrets: |
+            secret/data/products/camunda/ci/github-actions SNYK_TOKEN;
       - uses: ./.github/actions/setup-build
         with:
           dockerhub-readonly: true
@@ -176,7 +184,7 @@ jobs:
           } >> "$GITHUB_ENV"
       - name: Run Snyk
         env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          SNYK_TOKEN: ${{ steps.snyk-secret.outputs.SNYK_TOKEN }}
         # The script is set up to scan all distributable artifacts: the projects listed in the bom,
         # the Go client, and the official Docker image.
         # If we add things to the BOM, for example, we should also add them here to the

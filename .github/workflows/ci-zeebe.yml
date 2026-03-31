@@ -535,10 +535,19 @@ jobs:
     permissions:
       checks: read
       pull-requests: write
-    env:
-      GITHUB_TOKEN: ${{ secrets.AUTOMERGE_TOKEN }}
     steps:
       - uses: actions/checkout@v6
+      - name: Import Secrets
+        id: secrets
+        uses: hashicorp/vault-action@v3.4.0
+        with:
+          url: ${{ secrets.VAULT_ADDR }}
+          method: approle
+          roleId: ${{ secrets.VAULT_ROLE_ID }}
+          secretId: ${{ secrets.VAULT_SECRET_ID }}
+          exportEnv: true
+          secrets: |
+            secret/data/products/camunda/ci/github-actions AUTOMERGE_TOKEN | GITHUB_TOKEN;
       - id: approve-and-merge-backport-renovate
         name: Approve and merge backport PR
         run: |

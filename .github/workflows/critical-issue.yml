@@ -15,12 +15,24 @@ jobs:
         contains(github.event.issue.labels.*.name, 'component/zeebe') ||
         !contains(join(github.event.issue.labels.*.name, ', '), 'component/')
       )
+    permissions: {}
     steps:
+      - name: Import Secrets
+        id: secrets
+        uses: hashicorp/vault-action@v3.4.0
+        with:
+          url: ${{ secrets.VAULT_ADDR }}
+          method: approle
+          roleId: ${{ secrets.VAULT_ROLE_ID }}
+          secretId: ${{ secrets.VAULT_SECRET_ID }}
+          exportEnv: false
+          secrets: |
+            secret/data/products/camunda/ci/github-actions SLACK_TOPMONOREPOCI_WEBHOOK_URL | SLACK_WEBHOOK_URL;
       - id: slack-notify
         name: Send slack notification
         uses: slackapi/slack-github-action@v3.0.1
         with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook: ${{ steps.secrets.outputs.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
           # For posting a rich message using Block Kit
           payload: |

@@ -771,9 +771,21 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Import Secrets
+        id: secrets
+        uses: hashicorp/vault-action@v3.4.0
+        with:
+          url: ${{ secrets.VAULT_ADDR }}
+          method: approle
+          roleId: ${{ secrets.VAULT_ROLE_ID }}
+          secretId: ${{ secrets.VAULT_SECRET_ID }}
+          exportEnv: false
+          secrets: |
+            secret/data/products/camunda/ci/github-actions SLACK_DEVELOPER_PORTAL_WEBHOOK;
+
       - name: Send Slack notification
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DEVELOPER_PORTAL_WEBHOOK }}
+          SLACK_WEBHOOK_URL: ${{ steps.secrets.outputs.SLACK_DEVELOPER_PORTAL_WEBHOOK }}
         run: |
           RELEASE_BASE_URL="https://github.com/camunda/camunda/releases/download/${C8RUN_VERSION}"
           
@@ -841,6 +853,17 @@ jobs:
     if: ${{ !inputs.dry_run && needs.upload-to-release.result == 'success' }}
     permissions: {}
     steps:
+      - name: Import Secrets
+        id: secrets
+        uses: hashicorp/vault-action@v3.4.0
+        with:
+          url: ${{ secrets.VAULT_ADDR }}
+          method: approle
+          roleId: ${{ secrets.VAULT_ROLE_ID }}
+          secretId: ${{ secrets.VAULT_SECRET_ID }}
+          exportEnv: false
+          secrets: |
+            secret/data/products/camunda/ci/github-actions SLACK_CAMUNDA_EX_RELEASE_WEBHOOK;
       - name: Send release announcement to Slack
         env:
           C8RUN_VERSION: ${{ needs.resolve-versions.outputs.c8run_version }}
@@ -862,7 +885,7 @@ jobs:
           
           PAYLOAD=$(jq -n --argjson blocks "$BLOCKS" '{blocks: $blocks}')
           
-          curl -X POST "${{ secrets.SLACK_CAMUNDA_EX_RELEASE_WEBHOOK }}" \
+          curl -X POST "${{ steps.secrets.outputs.SLACK_CAMUNDA_EX_RELEASE_WEBHOOK }}" \
             -H "Content-Type: application/json" \
             -d "$PAYLOAD"
 
@@ -884,6 +907,17 @@ jobs:
     if: always() && (needs.build-bundle.result == 'failure' || needs.test-bundle.result == 'failure' || needs.upload-to-release.result == 'failure')
     permissions: {}
     steps:
+      - name: Import Secrets
+        id: secrets
+        uses: hashicorp/vault-action@v3.4.0
+        with:
+          url: ${{ secrets.VAULT_ADDR }}
+          method: approle
+          roleId: ${{ secrets.VAULT_ROLE_ID }}
+          secretId: ${{ secrets.VAULT_SECRET_ID }}
+          exportEnv: false
+          secrets: |
+            secret/data/products/camunda/ci/github-actions SLACK_CAMUNDA_EX_CI_WEBHOOK;
       - name: Send failure notification to Slack
         run: |
           WORKFLOW_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
@@ -902,7 +936,7 @@ jobs:
           
           PAYLOAD=$(jq -n --argjson blocks "$BLOCKS" '{blocks: $blocks}')
           
-          curl -X POST "${{ secrets.SLACK_CAMUNDA_EX_CI_WEBHOOK }}" \
+          curl -X POST "${{ steps.secrets.outputs.SLACK_CAMUNDA_EX_CI_WEBHOOK }}" \
             -H "Content-Type: application/json" \
             -d "$PAYLOAD"
 
