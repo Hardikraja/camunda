@@ -34,9 +34,10 @@ import org.awaitility.Awaitility;
 import org.elasticsearch.client.RestClient;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.GenericContainer;
@@ -60,7 +61,6 @@ class ElasticsearchExporterMigrationIT {
   private static final Logger LOG = LoggerFactory.getLogger(ElasticsearchExporterMigrationIT.class);
 
   private static final String ES_NETWORK_ALIAS = "test-elasticsearch";
-  private static final String CAMUNDA_8_8_IMAGE = "camunda/camunda:8.8.16";
   private static final String PROCESS_ID = "migration-test";
   private static final String JOB_TYPE = "test-job";
   private static final String CONTAINER_DATA_PATH = "/usr/local/camunda/data";
@@ -117,9 +117,13 @@ class ElasticsearchExporterMigrationIT {
     }
   }
 
-  @Test
+  @ParameterizedTest(name = "Migrate from {0} to 8.9")
+  @ValueSource(
+      strings = {
+        "8.8.16", "8.8.17", "8.8.18", "8.8.19", "8.8.20", "8.8.21",
+      })
   @Timeout(value = 10, unit = TimeUnit.MINUTES)
-  void shouldCompleteUpgradeWithBacklogAndExportAllRecords() throws Exception {
+  void shouldCompleteUpgradeWithBacklogAndExportAllRecords(final String param) throws Exception {
     final var esInternalUrl = "http://" + ES_NETWORK_ALIAS + ":9200";
     final var esExternalUrl = "http://" + esContainer.getHttpHostAddress();
     final List<Long> instanceKeys = new ArrayList<>();
@@ -128,9 +132,9 @@ class ElasticsearchExporterMigrationIT {
     final var volume = CamundaVolume.newCamundaVolume();
 
     // ---- Phase 1: Start 8.8, deploy process, create & complete instance #1 ----
-    LOG.info("Phase 1: Starting Camunda 8.8");
+    LOG.info("Phase 1: Starting Camunda " + param + " in Docker...");
     final GenericContainer<?> camunda88 =
-        new GenericContainer<>(CAMUNDA_8_8_IMAGE)
+        new GenericContainer<>("camunda/camunda:" + param)
             .withNetwork(network)
             .withExposedPorts(26500, 8080, 9600)
             .withCreateContainerCmdModifier(
