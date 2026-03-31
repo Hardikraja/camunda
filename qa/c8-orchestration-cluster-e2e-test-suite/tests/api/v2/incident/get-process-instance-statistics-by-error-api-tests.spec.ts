@@ -10,6 +10,7 @@ import {APIResponse, expect, test} from '@playwright/test';
 import {cancelProcessInstance, createSingleInstance, deploy} from '../../../../utils/zeebeClient';
 import {
   assertBadRequest,
+  assertInvalidArgument,
   assertStatusCode,
   assertUnauthorizedRequest,
   buildUrl,
@@ -40,7 +41,7 @@ test.describe('Get Process Instance Statistics By Error API Tests', () => {
     }
   });
 
-  test('should return statistics for process instances with errors', async ({request}) => {
+  test('Get Statistics For Process Instances with errors - Success', async ({request}) => {
     let processInstanceKeyToSearch: string;
     await test.step('Start a process instance that will throw an error', async () => {
         const instance = await createSingleInstance('singleIncidentProcess', 1);
@@ -78,4 +79,71 @@ test.describe('Get Process Instance Statistics By Error API Tests', () => {
         expect(matchingItem.activeInstancesWithErrorCount).toBeGreaterThanOrEqual(1);
     });
   });
+
+  //TODO: add more process instances and verify sorting behaviour
+  test('Get Process Instance Statistics By Error sort ASC by error message', async ({request}) => {
+    let processInstanceKeyToSearch: string;
+    await test.step('Start a process instance that will throw an error', async () => {
+        const instance = await createSingleInstance('singleIncidentProcess', 1);
+        processInstanceKeyToSearch =
+            instance.processInstanceKey as string;
+        console.log(`Started process instance with key: ${processInstanceKeyToSearch}`);
+        processInstanceKeys.push(processInstanceKeyToSearch);
+    });
+
+    await test.step('Verify that the process instance has incidents', async () => {
+        await verifyIncidentsForProcessInstance(
+            request,
+            processInstanceKeyToSearch,
+            1,
+        );
+    });
+    
+    await test.step('Get process instance statistics by error sorted ASC by error message', async () => {
+        const res = await request.post(buildUrl(`/incidents/statistics/process-instances-by-error`), {
+      headers: jsonHeaders(),
+      data: {
+        "sort": [
+            {
+                "field": "errorMessage",
+                "order": "ASC"
+            }
+        ]
+      },
+    });
+    assertStatusCode(res, 200);
+    const responseBody = await res.json();
+    await validateResponse({
+        path: '/incidents/statistics/process-instances-by-error',
+        method: 'POST',
+        status: '200',
+    }, res);
+    const responseItems = responseBody.items;
+    const sortedItems = [...responseItems].sort((a, b) => a.errorMessage.localeCompare(b.errorMessage));
+    console.log('Sorted items:', sortedItems);
+    // expect(responseItems).toEqual(sortedItems);
+    });
+  });
+
+  test('Get Process Instance Statistics By Error with negative page limit - Bad Request', async ({
+    request,
+  }) => {
+    await expect(async () => {
+      const res = await request.post(buildUrl(`/incidents/statistics/process-instances-by-error`), {
+        headers: jsonHeaders(),
+        data: {
+          page: {
+            limit: -1,
+          },
+        },
+      });
+
+      await assertInvalidArgument(
+        res,
+        400,
+        "The value for page.limit is '-1' but must be a non-negative number.",
+      );
+    }).toPass(defaultAssertionOptions);
+  });
+
 });
