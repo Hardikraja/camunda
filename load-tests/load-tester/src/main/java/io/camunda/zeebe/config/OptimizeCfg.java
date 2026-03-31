@@ -18,7 +18,7 @@ public final class OptimizeCfg {
   private String reportId;
   private boolean enableOptimize;
   private String processDefinitionKey;
-  private int evaluationIntervalSeconds = 60; // Default: 10 minutes
+  private int evaluationIntervalSeconds = 60; // Default: 1 minute
   private int durationLimit = 0; // 0 means run forever
   private int authRetryMaxAttempts = 30;
   private int authRetryDelaySeconds = 10;

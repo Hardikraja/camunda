@@ -98,7 +98,7 @@ public class OptimizeReportLoadTester {
       throw new RuntimeException("Failed to parse Keycloak login page");
     }
 
-    LOG.info("Login action URL: {}", loginActionUrl);
+    LOG.debug("Login action URL: {}", loginActionUrl);
 
     // Step 2: Submit login credentials with cookies
     final String loginFormData =
@@ -107,10 +107,10 @@ public class OptimizeReportLoadTester {
             URLEncoder.encode(username, StandardCharsets.UTF_8),
             URLEncoder.encode(password, StandardCharsets.UTF_8));
 
-    LOG.info("Submitting login credentials...");
+    LOG.debug("Submitting login credentials...");
     final String fullLoginUrl =
         loginActionUrl.startsWith("http") ? loginActionUrl : keycloakBaseUrl + loginActionUrl;
-    LOG.info("Full login URL: {}", fullLoginUrl);
+    LOG.debug("Full login URL: {}", fullLoginUrl);
 
     final HttpRequest.Builder loginRequestBuilder =
         HttpRequest.newBuilder()
@@ -502,7 +502,6 @@ public class OptimizeReportLoadTester {
             .header("Content-Type", "application/json")
             .header("X-Optimize-Client-Timezone", "UTC")
             .header("X-Optimize-Client-Locale", "en")
-            .timeout(Duration.ofSeconds(120))
             .GET()
             .build();
 
@@ -629,13 +628,13 @@ public class OptimizeReportLoadTester {
           final String reportId = tile.get("id").asText();
           if (reportId != null && !reportId.trim().isEmpty()) {
             reportIds.add(reportId);
-            LOG.info("Found report ID in dashboard: {}", reportId);
+            LOG.debug("Found report ID in dashboard: {}", reportId);
           }
         }
       }
     }
 
-    LOG.info("Extracted {} report IDs from dashboard", reportIds.size());
+    LOG.debug("Extracted {} report IDs from dashboard", reportIds.size());
     return reportIds;
   }
 

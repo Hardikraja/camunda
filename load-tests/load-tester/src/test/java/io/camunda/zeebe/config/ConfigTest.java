@@ -84,7 +84,7 @@ public class ConfigTest {
     assertThat(optimizeCfg.getUsername()).isEqualTo("demo");
     assertThat(optimizeCfg.getPassword()).isEqualTo("demo");
     assertThat(optimizeCfg.getReportId()).isEmpty();
-    assertThat(optimizeCfg.getEvaluationIntervalSeconds()).isEqualTo(600);
+    assertThat(optimizeCfg.getEvaluationIntervalSeconds()).isEqualTo(60);
     assertThat(optimizeCfg.getDurationLimit()).isZero();
   }
 
