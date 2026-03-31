@@ -18,9 +18,8 @@ For the full engine mental model, see [zeebe/engine/README.md](../../zeebe/engin
 
 ### I added a new event applier
 
-Create the golden file. The test failure message includes a ready-to-run `cp` command. Copy-paste
-it, or run `GoldenFileUpdater.main()` (defined inside `NoChangesTest`) to update all golden files
-at once.
+Create the golden file. The test failure message includes a ready-to-run `cp` command — copy-paste
+it.
 
 ### I intentionally changed an existing event applier
 
@@ -62,3 +61,19 @@ In rare cases, updating the golden file is acceptable:
   carefully whether this is truly safe.
 
 When in doubt, register a new applier version.
+
+## Bulk Updates with GoldenFileUpdater
+
+> [!WARNING]
+> `GoldenFileUpdater` overwrites **all** golden files unconditionally. Running it without reviewing
+> each failure individually can hide breaking changes that cause leader/follower state divergence in
+> production.
+
+`NoChangesTest` contains an inner class `GoldenFileUpdater` with a `main` method. It iterates all
+registered appliers and copies each source file to its golden file (or creates an empty file for
+NOOP appliers). You can run it from your IDE (IntelliJ shows a run gutter icon) or from the command
+line.
+
+Only use this when you have many new golden files to create at once — for example, after adding
+several new appliers. Always review each failing test case first to confirm that updating the golden
+file is the right action.
