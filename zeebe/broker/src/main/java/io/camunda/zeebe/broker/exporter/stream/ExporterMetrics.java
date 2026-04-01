@@ -11,20 +11,28 @@ import io.camunda.zeebe.broker.exporter.stream.ExporterMetricsDoc.ExporterAction
 import io.camunda.zeebe.protocol.record.ValueType;
 import io.camunda.zeebe.util.CloseableSilently;
 import io.camunda.zeebe.util.collection.Table;
+import io.camunda.zeebe.util.logging.ThrottledLogger;
 import io.camunda.zeebe.util.micrometer.ExtendedMeterDocumentation;
 import io.camunda.zeebe.util.micrometer.MicrometerUtil;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class ExporterMetrics {
+  private static final Logger LOGGER = LoggerFactory.getLogger(ExporterMetrics.class);
+  private static final Logger NEGATIVE_LATENCY_LOGGER =
+      new ThrottledLogger(LOGGER, Duration.ofMinutes(15));
+
   private static final String LABEL_NAME_EXPORTER = "exporter";
   private static final String LABEL_NAME_ACTION = "action";
   private static final String LABEL_NAME_VALUE_TYPE = "valueType";
@@ -83,9 +91,20 @@ public final class ExporterMetrics {
 
   public void exportingLatency(
       final ValueType valueType, final long written, final long exporting) {
+    final long latency = exporting - written;
+    if (latency < 0) {
+      NEGATIVE_LATENCY_LOGGER.warn(
+          "Exporting latency is negative ({} ms) for value type {} (record timestamp={}, current"
+              + " time={}); this can happen when the broker clock is pinned to a value in the"
+              + " past. Reporting 0 instead.",
+          latency,
+          valueType,
+          written,
+          exporting);
+    }
     exportingLatency
         .computeIfAbsent(valueType, this::registerExportingLatency)
-        .record(Math.max(0, exporting - written), TimeUnit.MILLISECONDS);
+        .record(Math.max(0, latency), TimeUnit.MILLISECONDS);
   }
 
   public CloseableSilently startExporterExportingTimer(
