@@ -49,6 +49,7 @@ class ExporterConfigurationTest {
         Duration.ofMillis(-1000));
     historyConfiguration.setBatchOperationModifyProcessInstanceHistoryTTL(Duration.ofMillis(-1000));
     historyConfiguration.setBatchOperationResolveIncidentHistoryTTL(Duration.ofMillis(-1000));
+    historyConfiguration.setMaxHistoryCleanupUsage(0);
 
     final ExporterConfiguration configuration = new ExporterConfiguration();
     configuration.setFlushInterval(Duration.ofMillis(-1000));
@@ -83,7 +84,8 @@ class ExporterConfigurationTest {
         .hasMessageContaining("batchOperationCache.maxSize must be")
         .hasMessageContaining("processCache.maxSize must be")
         .hasMessageContaining("insertBatching.maxAuditLogInsertBatchSize must be")
-        .hasMessageContaining("insertBatching.maxVariableInsertBatchSize must be");
+        .hasMessageContaining("insertBatching.maxVariableInsertBatchSize must be")
+        .hasMessageContaining("maxHistoryCleanupUsage must be between");
   }
 
   @Test
