@@ -95,6 +95,79 @@ public final class VariableMappingTransformer {
     return parseExpression(contextExpression, expressionLanguage);
   }
 
+  /**
+   * Transforms the output mappings into two separate expressions:
+   *
+   * <ol>
+   *   <li>An expression based on parent scope.
+   *       <ul>
+   *         <li>Goal: Keep all parent scope variables intact when evaluating expression
+   *       </ul>
+   *   <li>An expression based on local scope.
+   *       <ul>
+   *         <li>Goal: Keep all local scope output mapping variables intact when evaluating
+   *             expression
+   *       </ul>
+   * </ol>
+   *
+   * @return an {@link OutputMappingExpressions} containing both expressions
+   */
+  public OutputMappingExpressions transformOutputMappingsExpressions(
+      final Collection<? extends ZeebeMapping> outputMappings,
+      final ExpressionLanguage expressionLanguage) {
+
+    final var mappings = toMappings(outputMappings, expressionLanguage);
+
+    //    Captures existing variable values from the parent scope
+    final var parentExpression = buildParentExpression(mappings, expressionLanguage);
+
+    //    Builds the output-mapped values using context put()
+    final var localOutputMappingExpression =
+        buildLocalOutputMappingExpression(mappings, expressionLanguage);
+
+    return new OutputMappingExpressions(parentExpression, localOutputMappingExpression);
+  }
+
+  private Expression buildParentExpression(
+      final List<Mapping> mappings, final ExpressionLanguage expressionLanguage) {
+    // Collect the top-level target keys (the first segment of each target path)
+    final var topLevelKeys = new java.util.LinkedHashSet<String>();
+    for (final Mapping mapping : mappings) {
+      final var parts = splitPathExpression(mapping.target);
+      topLevelKeys.add(parts.getFirst());
+    }
+
+    // Build a FEEL context expression that references each top-level key by name
+    final var entries =
+        topLevelKeys.stream().map(key -> key + ":" + key).collect(Collectors.joining(","));
+    final var contextExpression = "{" + entries + "}";
+    return parseExpression(contextExpression, expressionLanguage);
+  }
+
+  private Expression buildLocalOutputMappingExpression(
+      final List<Mapping> mappings, final ExpressionLanguage expressionLanguage) {
+    // This intentionally does NOT use MappingContextVisitor because context put() is a flat,
+    // path-based function-call chain, whereas the visitor walks a grouped tree structure that
+    // maps to context *literals* ({key: {nested: value}}).
+    var expression = "{}";
+
+    for (final Mapping mapping : mappings) {
+      final var parts = splitPathExpression(mapping.target);
+      final var sourceExpr = formatSourceExpression(mapping.source);
+
+      if (parts.size() == 1) {
+        expression =
+            String.format("context put(%s,\"%s\",%s)", expression, parts.getFirst(), sourceExpr);
+      } else {
+        final var pathList =
+            parts.stream().map(p -> "\"" + p + "\"").collect(Collectors.joining(","));
+        expression = String.format("context put(%s,[%s],%s)", expression, pathList, sourceExpr);
+      }
+    }
+
+    return parseExpression(expression, expressionLanguage);
+  }
+
   private List<Mapping> toMappings(
       final Collection<? extends ZeebeMapping> mappings,
       final ExpressionLanguage expressionLanguage) {
@@ -155,18 +228,7 @@ public final class VariableMappingTransformer {
     return new MappingContextVisitor<>() {
       @Override
       public String onEntry(final String targetKey, final Expression sourceExpression) {
-        final String expression;
-
-        if (sourceExpression instanceof StaticExpression) {
-          // due to a regression (https://github.com/camunda/camunda/issues/16043) all the double
-          // quotes inside the static expression must be escaped
-          expression =
-              String.format("\"%s\"", sourceExpression.getExpression().replaceAll("\"", "\\\\\""));
-        } else {
-          expression = sourceExpression.getExpression();
-        }
-
-        return targetKey + ":" + expression;
+        return targetKey + ":" + formatSourceExpression(sourceExpression);
       }
 
       @Override
@@ -191,6 +253,15 @@ public final class VariableMappingTransformer {
     return String.format(
         "if (%s != null) then context merge(%s,%s) else %s",
         existingContext, existingContext, nestedContext, nestedContext);
+  }
+
+  private static String formatSourceExpression(final Expression sourceExpression) {
+    if (sourceExpression instanceof StaticExpression) {
+      // due to a regression (https://github.com/camunda/camunda/issues/16043) all the double
+      // quotes inside the static expression must be escaped
+      return String.format("\"%s\"", sourceExpression.getExpression().replaceAll("\"", "\\\\\""));
+    }
+    return sourceExpression.getExpression();
   }
 
   private Expression parseExpression(
@@ -281,4 +352,7 @@ public final class VariableMappingTransformer {
 
     T onContextEntry(final String target, final T contextValue, final List<String> contextPath);
   }
+
+  public record OutputMappingExpressions(
+      Expression parentExpression, Expression localOutputMappingsExpression) {}
 }

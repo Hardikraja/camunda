@@ -86,6 +86,20 @@ public final class FlowNodeTransformer implements ModelElementTransformer<FlowNo
             mappings ->
                 variableMappingTransformer.transformOutputMappings(mappings, expressionLanguage))
         .ifPresent(flowNode::setOutputMappings);
+
+    ioMapping
+        .map(ZeebeIoMapping::getOutputs)
+        .filter(mappings -> !mappings.isEmpty())
+        .map(
+            mappings ->
+                variableMappingTransformer.transformOutputMappingsExpressions(
+                    mappings, expressionLanguage))
+        .ifPresent(
+            expressions -> {
+              flowNode.setParentExpression(expressions.parentExpression());
+              flowNode.setLocalOutputMappingsExpression(
+                  expressions.localOutputMappingsExpression());
+            });
   }
 
   private void transformExecutionListeners(
