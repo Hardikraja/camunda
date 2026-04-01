@@ -95,8 +95,8 @@ public final class ExporterMetrics {
     if (latency < 0) {
       NEGATIVE_LATENCY_LOGGER.warn(
           "Exporting latency is negative ({} ms) for value type {} (record timestamp={}, current"
-              + " time={}); possible causes include the broker clock being pinned to a value in"
-              + " the past, or clock skew between nodes. Reporting 0 instead.",
+              + " time={}); one possible cause is the broker clock being pinned to a value in the"
+              + " past. Reporting 0 instead.",
           latency,
           valueType,
           written,
