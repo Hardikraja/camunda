@@ -581,7 +581,9 @@ public class ExporterConfiguration {
                 historyCleanupBatchSize));
       }
 
-      if (maxHistoryCleanupUsage <= 0 || maxHistoryCleanupUsage > 1) {
+      if (!Double.isFinite(maxHistoryCleanupUsage)
+          || maxHistoryCleanupUsage <= 0
+          || maxHistoryCleanupUsage > 1) {
         errors.add(
             String.format(
                 "maxHistoryCleanupUsage must be between 0 (exclusive) and 1 (inclusive) but was %s",

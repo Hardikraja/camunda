@@ -487,4 +487,30 @@ class ExporterConfigurationTest {
     assertThatThrownBy(configuration::validate)
         .hasMessageContaining("jobBatchMetricsTTL must be a positive duration");
   }
+
+  @Test
+  public void shouldFailWithNaNMaxHistoryCleanupUsage() {
+    final ExporterConfiguration.HistoryConfiguration historyConfiguration =
+        new ExporterConfiguration.HistoryConfiguration();
+    final ExporterConfiguration configuration = new ExporterConfiguration();
+    configuration.setHistory(historyConfiguration);
+
+    historyConfiguration.setMaxHistoryCleanupUsage(Double.NaN);
+
+    assertThatThrownBy(configuration::validate)
+        .hasMessageContaining("maxHistoryCleanupUsage must be between");
+  }
+
+  @Test
+  public void shouldFailWithInfiniteMaxHistoryCleanupUsage() {
+    final ExporterConfiguration.HistoryConfiguration historyConfiguration =
+        new ExporterConfiguration.HistoryConfiguration();
+    final ExporterConfiguration configuration = new ExporterConfiguration();
+    configuration.setHistory(historyConfiguration);
+
+    historyConfiguration.setMaxHistoryCleanupUsage(Double.POSITIVE_INFINITY);
+
+    assertThatThrownBy(configuration::validate)
+        .hasMessageContaining("maxHistoryCleanupUsage must be between");
+  }
 }

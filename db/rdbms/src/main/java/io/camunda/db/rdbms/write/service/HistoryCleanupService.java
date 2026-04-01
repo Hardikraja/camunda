@@ -398,8 +398,8 @@ public class HistoryCleanupService {
    * the cleanup to exceed the configured maximum percentage of total cycle time (cleanup +
    * interval), the interval is increased so that the ratio is respected.
    *
-   * <p>Required interval = {@code lastCleanupDuration * (1 - maxUsage) / maxUsage}, capped at
-   * {@code maxCleanupInterval}.
+   * <p>Required interval = {@code lastCleanupDuration / maxUsage}, capped at {@code
+   * maxCleanupInterval}.
    *
    * @param proposedDuration the interval proposed by the batch-size-based logic
    * @param lastCleanupDuration the actual time taken by the last cleanup run, or {@code null} if
