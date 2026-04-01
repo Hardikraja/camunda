@@ -20,9 +20,11 @@ import io.camunda.zeebe.engine.state.immutable.EventScopeInstanceState;
 import io.camunda.zeebe.engine.state.immutable.ProcessingState;
 import io.camunda.zeebe.engine.state.immutable.VariableState;
 import io.camunda.zeebe.engine.state.instance.EventTrigger;
+import io.camunda.zeebe.msgpack.MsgPackUtil;
 import io.camunda.zeebe.protocol.impl.record.value.processinstance.ProcessInstanceRecord;
 import io.camunda.zeebe.protocol.record.value.BpmnElementType;
 import io.camunda.zeebe.util.Either;
+import io.camunda.zeebe.util.buffer.BufferUtil;
 import java.util.Optional;
 import org.agrona.DirectBuffer;
 
@@ -133,7 +135,36 @@ public final class BpmnVariableMappingBehavior {
             variables);
       }
 
-      // apply the output mappings
+      final Optional<Expression> parentExpression = element.getParentExpression();
+      final Optional<Expression> localOutputMappingsExpression =
+          element.getLocalOutputMappingsExpression();
+
+      if (parentExpression.isPresent() && localOutputMappingsExpression.isPresent()) {
+        return expressionProcessor
+            .evaluateVariableMappingExpression(parentExpression.get(), scopeKey, tenantId)
+            .map(BufferUtil::cloneBuffer)
+            .flatMap(
+                existingVars ->
+                    expressionProcessor
+                        .evaluateVariableMappingExpression(
+                            localOutputMappingsExpression.get(), elementInstanceKey, tenantId)
+                        .map(
+                            overrideVars -> {
+                              final DirectBuffer merged =
+                                  MsgPackUtil.mergeMsgPackDocuments(existingVars, overrideVars);
+                              variableBehavior.mergeDocument(
+                                  scopeKey,
+                                  processDefinitionKey,
+                                  processInstanceKey,
+                                  rootProcessInstanceKey,
+                                  bpmnProcessId,
+                                  context.getTenantId(),
+                                  merged);
+                              return null;
+                            }));
+      }
+
+      // Fallback to the original single expression behavior
       return expressionProcessor
           .evaluateVariableMappingExpression(
               outputMappingExpression.get(), elementInstanceKey, tenantId)
