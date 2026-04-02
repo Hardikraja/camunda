@@ -120,7 +120,27 @@ class ElasticsearchExporterMigrationIT {
   @ParameterizedTest(name = "Migrate from {0} to 8.9")
   @ValueSource(
       strings = {
-        "8.8.16", "8.8.17", "8.8.18", "8.8.19", "8.8.20", "8.8.21",
+        "8.8.2",
+        "8.8.3",
+        "8.8.4",
+        "8.8.5",
+        "8.8.6",
+        "8.8.7",
+        "8.8.8",
+        "8.8.9",
+        "8.8.10",
+        "8.8.11",
+        "8.8.12",
+        "8.8.13",
+        "8.8.14",
+        "8.8.15",
+        "8.8.16",
+        "8.8.17",
+        "8.8.18",
+        "8.8.19",
+        "8.8.20",
+        "8.8.21",
+        "8.8-SNAPSHOT"
       })
   @Timeout(value = 10, unit = TimeUnit.MINUTES)
   void shouldCompleteUpgradeWithBacklogAndExportAllRecords(final String param) throws Exception {
