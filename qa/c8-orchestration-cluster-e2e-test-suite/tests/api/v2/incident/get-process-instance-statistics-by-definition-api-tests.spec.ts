@@ -29,7 +29,7 @@ import {
 } from '@requestHelpers';
 import {cleanupUsers} from 'utils/usersCleanup';
 
-test.describe('Get Process Instance Statistics By Definition API Tests', () => {
+test.describe.parallel('Get Process Instance Statistics By Definition API Tests', () => {
   let userWithResourcesAuthorizationToSendRequest: {
     username: string;
     name: string;
@@ -80,15 +80,18 @@ test.describe('Get Process Instance Statistics By Definition API Tests', () => {
   test('Get Process Instance Statistics By Definition - Success', async ({
     request,
   }) => {
-    let errorHashCode: string;
+    let errorHashCode: number;
     const expectedProcessDefinitionId = 'MultipleErrorTypesProcess';
 
     await test.step('Create process instance with incidents', async () => {
       await test.step('Start a process instance that will have an incident', async () => {
-        const localState: Record<string, unknown> = {};
-        await createTwoDifferentIncidentsInOneProcess(localState, request);
-        await createTwoDifferentIncidentsInOneProcess(localState, request);
-        processInstanceKeys.push(localState['processInstanceKey'] as string);
+        const firstLocalState: Record<string, unknown> = {};
+        await createTwoDifferentIncidentsInOneProcess(firstLocalState, request);
+        processInstanceKeys.push(firstLocalState['processInstanceKey'] as string);
+
+        const secondLocalState: Record<string, unknown> = {};
+        await createTwoDifferentIncidentsInOneProcess(secondLocalState, request);
+        processInstanceKeys.push(secondLocalState['processInstanceKey'] as string);
       });
 
       const processInstanceKeyToSearch =
@@ -103,7 +106,7 @@ test.describe('Get Process Instance Statistics By Definition API Tests', () => {
       });
     });
 
-    const exectedErrorMessage =
+    const expectedErrorMessage =
       "Expected to evaluate decision 'MeowDM', but no decision found for id 'MeowDM'";
 
     await test.step('Get process instance statistics by error to get errorHashCode', async () => {
@@ -127,7 +130,7 @@ test.describe('Get Process Instance Statistics By Definition API Tests', () => {
       const responseItems = responseBody.items;
       const matchingItem = responseItems.find(
         (item: {errorMessage: string}) =>
-          item.errorMessage === exectedErrorMessage,
+          item.errorMessage === expectedErrorMessage,
       );
       expect(matchingItem).toBeDefined();
       errorHashCode = matchingItem.errorHashCode;
@@ -172,29 +175,7 @@ test.describe('Get Process Instance Statistics By Definition API Tests', () => {
   test('Get Process Instance Statistics By Definition - Unauthorized', async ({
     request,
   }) => {
-    let errorHashCode: string;
-
-    await test.step('Get process instance statistics by error to get errorHashCode', async () => {
-      const res = await request.post(
-        buildUrl(`/incidents/statistics/process-instances-by-error`),
-        {
-          headers: jsonHeaders(),
-        },
-      );
-      assertStatusCode(res, 200);
-      const responseBody = await res.json();
-      await validateResponse(
-        {
-          path: '/incidents/statistics/process-instances-by-error',
-          method: 'POST',
-          status: '200',
-        },
-        res,
-      );
-      expect(responseBody.page.totalItems).toBeGreaterThanOrEqual(1);
-      const item = responseBody.items[0];
-      errorHashCode = item.errorHashCode;
-    });
+    const errorHashCode = 123456789;
 
     await test.step('Get process instance statistics by definition without authorization', async () => {
       const res = await request.post(

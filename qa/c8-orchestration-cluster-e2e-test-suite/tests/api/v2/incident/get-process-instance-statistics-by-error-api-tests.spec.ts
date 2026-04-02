@@ -32,7 +32,7 @@ import {
 import {cleanupUsers} from 'utils/usersCleanup';
 import {sleep} from 'utils/sleep';
 
-test.describe('Get Process Instance Statistics By Error API Tests', () => {
+test.describe.parallel('Get Process Instance Statistics By Error API Tests', () => {
   let userWithResourcesAuthorizationToSendRequest: {
     username: string;
     name: string;
@@ -102,35 +102,36 @@ test.describe('Get Process Instance Statistics By Error API Tests', () => {
         processInstanceKeyToSearch,
         1,
       );
-      await sleep(2000);
     });
 
     await test.step('Get process instance statistics by error', async () => {
-      const res = await request.post(
-        buildUrl(`/incidents/statistics/process-instances-by-error`),
-        {
-          headers: jsonHeaders(),
-        },
-      );
-      assertStatusCode(res, 200);
-      const responseBody = await res.json();
-      await validateResponse(
-        {
-          path: '/incidents/statistics/process-instances-by-error',
-          method: 'POST',
-          status: '200',
-        },
-        res,
-      );
-      expect(responseBody.page.totalItems).toBeGreaterThanOrEqual(1);
-      const responseItems = responseBody.items;
-      const matchingItem = responseItems.find(
-        (item: {errorMessage: string}) => item.errorMessage === errorMessage,
-      );
-      expect(matchingItem).toBeDefined();
-      expect(matchingItem.activeInstancesWithErrorCount).toBeGreaterThanOrEqual(
-        1,
-      );
+      await expect(async () => {
+        const res = await request.post(
+          buildUrl(`/incidents/statistics/process-instances-by-error`),
+          {
+            headers: jsonHeaders(),
+          },
+        );
+        assertStatusCode(res, 200);
+        const responseBody = await res.json();
+        await validateResponse(
+          {
+            path: '/incidents/statistics/process-instances-by-error',
+            method: 'POST',
+            status: '200',
+          },
+          res,
+        );
+        expect(responseBody.page.totalItems).toBeGreaterThanOrEqual(1);
+        const responseItems = responseBody.items;
+        const matchingItem = responseItems.find(
+          (item: {errorMessage: string}) => item.errorMessage === errorMessage,
+        );
+        expect(matchingItem).toBeDefined();
+        expect(matchingItem.activeInstancesWithErrorCount).toBeGreaterThanOrEqual(
+          1,
+        );
+      }).toPass(defaultAssertionOptions);
     });
   });
 
@@ -144,11 +145,10 @@ test.describe('Get Process Instance Statistics By Error API Tests', () => {
       await createTwoDifferentIncidentsInOneProcess(localState, request);
       processInstanceKeys.push(localState['processInstanceKey'] as string);
 
-      const instance = await createSingleInstance('singleIncidentProcess', 1);
-      processInstanceKeyToSearch = instance.processInstanceKey as string;
-      console.log(
-        `Started process instance with key: ${processInstanceKeyToSearch}`,
-      );
+      const instance1 = await createSingleInstance('singleIncidentProcess', 1);
+      processInstanceKeyToSearch = instance1.processInstanceKey as string;
+      const instance2 = await createSingleInstance('singleIncidentProcess', 1);
+      processInstanceKeys.push(instance2.processInstanceKey as string);
       processInstanceKeys.push(processInstanceKeyToSearch);
     });
 
@@ -160,7 +160,7 @@ test.describe('Get Process Instance Statistics By Error API Tests', () => {
       );
     });
 
-    await test.step('Get process instance statistics by error sorted ASC by error message', async () => {
+    await test.step('Get process instance statistics by error sorted ASC by activeInstancesWithErrorCount', async () => {
       const res = await request.post(
         buildUrl(`/incidents/statistics/process-instances-by-error`),
         {
@@ -190,8 +190,6 @@ test.describe('Get Process Instance Statistics By Error API Tests', () => {
         (a, b) =>
           a.activeInstancesWithErrorCount - b.activeInstancesWithErrorCount,
       );
-      console.log('Sorted items:', sortedItems);
-      console.log('Response items:', responseItems);
       expect(responseItems).toEqual(sortedItems);
     });
   });
@@ -220,7 +218,7 @@ test.describe('Get Process Instance Statistics By Error API Tests', () => {
     }).toPass(defaultAssertionOptions);
   });
 
-  test('Get Process Instance Statistics By Error with non-numeric page limit - Bad Request', async ({
+  test('Get Process Instance Statistics By Error Invalid Sort Field - Bad Request', async ({
     request,
   }) => {
     const invalidSortField = 'invalid';
