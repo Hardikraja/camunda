@@ -6,11 +6,13 @@
  * except in compliance with the Camunda License 1.0.
  */
 
-import {APIResponse, expect, test} from '@playwright/test';
-import {cancelProcessInstance, createSingleInstance, deploy} from '../../../../utils/zeebeClient';
+import {expect, test} from '@playwright/test';
+import {
+  cancelProcessInstance,
+  deploy,
+} from '../../../../utils/zeebeClient';
 import {
   assertBadRequest,
-  assertInvalidArgument,
   assertStatusCode,
   assertUnauthorizedRequest,
   buildUrl,
@@ -19,40 +21,45 @@ import {
 } from '../../../../utils/http';
 import {defaultAssertionOptions} from '../../../../utils/constants';
 import {validateResponse} from '../../../../json-body-assertions';
-import {createTwoDifferentIncidentsInOneProcess, createUser, grantUserResourceAuthorization, verifyIncidentsForProcessInstance} from '@requestHelpers';
-import { cleanupUsers } from 'utils/usersCleanup';
-import { error } from 'console';
+import {
+  createTwoDifferentIncidentsInOneProcess,
+  createUser,
+  grantUserResourceAuthorization,
+  verifyIncidentsForProcessInstance,
+} from '@requestHelpers';
+import {cleanupUsers} from 'utils/usersCleanup';
 
 test.describe('Get Process Instance Statistics By Definition API Tests', () => {
-    let userWithResourcesAuthorizationToSendRequest: {
-      username: string;
-      name: string;
-      email: string;
-      password: string;
-    } = {} as {
-      username: string;
-      name: string;
-      email: string;
-      password: string;
-    };
-    const processInstanceKeys: string[] = [];
-    test.beforeAll(async ({request}) => {
-        await deploy([
-            './resources/processWithAnError.bpmn',
-            './resources/MultipleErrorTypesProcess.bpmn',
-            './resources/singleIncidentProcess.bpmn',
-        ]);
+  let userWithResourcesAuthorizationToSendRequest: {
+    username: string;
+    name: string;
+    email: string;
+    password: string;
+  } = {} as {
+    username: string;
+    name: string;
+    email: string;
+    password: string;
+  };
+  const processInstanceKeys: string[] = [];
 
-        await test.step('Setup - Create test user with Resource Authorization and user for granting Authorization', async () => {
-              userWithResourcesAuthorizationToSendRequest = await createUser(request);
-              await grantUserResourceAuthorization(
-                request,
-                userWithResourcesAuthorizationToSendRequest,
-              );
-            });
+  test.beforeAll(async ({request}) => {
+    await deploy([
+      './resources/processWithAnError.bpmn',
+      './resources/MultipleErrorTypesProcess.bpmn',
+      './resources/singleIncidentProcess.bpmn',
+    ]);
+
+    await test.step('Setup - Create test user with Resource Authorization and user for granting Authorization', async () => {
+      userWithResourcesAuthorizationToSendRequest = await createUser(request);
+      await grantUserResourceAuthorization(
+        request,
+        userWithResourcesAuthorizationToSendRequest,
+      );
     });
+  });
 
-    test.afterAll(async ({request}) => {
+  test.afterAll(async ({request}) => {
     for (const processInstanceKey of processInstanceKeys) {
       try {
         await cancelProcessInstance(processInstanceKey);
@@ -64,152 +71,201 @@ test.describe('Get Process Instance Statistics By Definition API Tests', () => {
     }
 
     await test.step('Cleanup - Delete test users', async () => {
-          await cleanupUsers(request, [
-            userWithResourcesAuthorizationToSendRequest.username,
-          ]);
-        });
+      await cleanupUsers(request, [
+        userWithResourcesAuthorizationToSendRequest.username,
+      ]);
+    });
   });
 
-    test('Get Process Instance Statistics By Definition - Success', async ({request}) => {
-        let errorHashCode: string;
-        const expectedProcessDefinitionId = 'MultipleErrorTypesProcess';
-        await test.step('Create process instance with incidents', async () => {
-            await test.step('Start a process instance that will have an incident', async () => {
-                const localState: Record<string, unknown> = {};
-                await createTwoDifferentIncidentsInOneProcess(localState, request);
-                await createTwoDifferentIncidentsInOneProcess(localState, request);
-                processInstanceKeys.push(localState['processInstanceKey'] as string);
-            });
+  test('Get Process Instance Statistics By Definition - Success', async ({
+    request,
+  }) => {
+    let errorHashCode: string;
+    const expectedProcessDefinitionId = 'MultipleErrorTypesProcess';
 
-            const processInstanceKeyToSearch = processInstanceKeys[processInstanceKeys.length - 1];
+    await test.step('Create process instance with incidents', async () => {
+      await test.step('Start a process instance that will have an incident', async () => {
+        const localState: Record<string, unknown> = {};
+        await createTwoDifferentIncidentsInOneProcess(localState, request);
+        await createTwoDifferentIncidentsInOneProcess(localState, request);
+        processInstanceKeys.push(localState['processInstanceKey'] as string);
+      });
 
-            await test.step('Verify that the process instance has incidents', async () => {
-                await verifyIncidentsForProcessInstance(
-                    request,
-                    processInstanceKeyToSearch,
-                    2,
-                );
-            });
-        });
+      const processInstanceKeyToSearch =
+        processInstanceKeys[processInstanceKeys.length - 1];
 
-        const exectedErrorMessage = 'Expected to evaluate decision \'MeowDM\', but no decision found for id \'MeowDM\'';
-
-        await test.step('Get process instance statistics by error to get errorHashCode', async () => {
-            const res = await request.post(buildUrl(`/incidents/statistics/process-instances-by-error`), {
-                headers: jsonHeaders(),
-            });
-            assertStatusCode(res, 200);
-            const responseBody = await res.json();
-            await validateResponse({
-                path: '/incidents/statistics/process-instances-by-error',
-                method: 'POST',
-                status: '200',
-            }, res);
-            expect(responseBody.page.totalItems).toBeGreaterThanOrEqual(1);
-            const responseItems = responseBody.items;
-            const matchingItem = responseItems.find(
-                (item: { errorMessage: string }) => item.errorMessage === exectedErrorMessage,
-            );
-            expect(matchingItem).toBeDefined();
-            errorHashCode = matchingItem.errorHashCode;
-        });
-
-        await test.step('Get process instance statistics by definition with errorHashCode filter', async () => {
-            await expect(async () => {
-                const res = await request.post(buildUrl(`/incidents/statistics/process-instances-by-definition`), {
-                    headers: jsonHeaders(),
-                    data: {
-                        filter: {
-                            errorHashCode,
-                        },
-                    },
-                });
-                assertStatusCode(res, 200);
-                const responseBody = await res.json();
-                await validateResponse({
-                    path: '/incidents/statistics/process-instances-by-definition',
-                    method: 'POST',
-                    status: '200',
-                }, res);
-                expect(responseBody.page.totalItems).toBeGreaterThanOrEqual(1);
-                const matchingItem = responseBody.items.find(
-                    (item: { processDefinitionId: string }) => item.processDefinitionId.includes(expectedProcessDefinitionId),
-                );
-                expect(matchingItem).toBeDefined();
-                expect(matchingItem.activeInstancesWithErrorCount).toBeGreaterThanOrEqual(2);
-            }).toPass(defaultAssertionOptions);
-        });
+      await test.step('Verify that the process instance has incidents', async () => {
+        await verifyIncidentsForProcessInstance(
+          request,
+          processInstanceKeyToSearch,
+          2,
+        );
+      });
     });
 
-    test('Get Process Instance Statistics By Definition - Unauthorized', async ({request}) => {
-        let errorHashCode: string;
-        await test.step('Get process instance statistics by error to get errorHashCode', async () => {
-            const res = await request.post(buildUrl(`/incidents/statistics/process-instances-by-error`), {
-                headers: jsonHeaders(),
-            });
-            assertStatusCode(res, 200);
-            const responseBody = await res.json();
-            await validateResponse({
-                path: '/incidents/statistics/process-instances-by-error',
-                method: 'POST',
-                status: '200',
-            }, res);
-            expect(responseBody.page.totalItems).toBeGreaterThanOrEqual(1);
-            const item = responseBody.items[0];
-            errorHashCode = item.errorHashCode;
-        });
+    const exectedErrorMessage =
+      "Expected to evaluate decision 'MeowDM', but no decision found for id 'MeowDM'";
 
-        await test.step('Get process instance statistics by definition without authorization', async () => {
-            const res = await request.post(buildUrl(`/incidents/statistics/process-instances-by-definition`), {
-            headers: {},
-            data: {
-                filter: {
-                    errorHashCode,
-                },
-            },
-        });
-        await assertUnauthorizedRequest(res);
-        });
+    await test.step('Get process instance statistics by error to get errorHashCode', async () => {
+      const res = await request.post(
+        buildUrl(`/incidents/statistics/process-instances-by-error`),
+        {
+          headers: jsonHeaders(),
+        },
+      );
+      assertStatusCode(res, 200);
+      const responseBody = await res.json();
+      await validateResponse(
+        {
+          path: '/incidents/statistics/process-instances-by-error',
+          method: 'POST',
+          status: '200',
+        },
+        res,
+      );
+      expect(responseBody.page.totalItems).toBeGreaterThanOrEqual(1);
+      const responseItems = responseBody.items;
+      const matchingItem = responseItems.find(
+        (item: {errorMessage: string}) =>
+          item.errorMessage === exectedErrorMessage,
+      );
+      expect(matchingItem).toBeDefined();
+      errorHashCode = matchingItem.errorHashCode;
     });
 
-    test('Get Process Instance Statistics By Definition - Bad Request', async ({request}) => {
-        const errorHashCode = "meow";
-        const res = await request.post(buildUrl(`/incidents/statistics/process-instances-by-definition`), {
+    await test.step('Get process instance statistics by definition with errorHashCode filter', async () => {
+      await expect(async () => {
+        const res = await request.post(
+          buildUrl(`/incidents/statistics/process-instances-by-definition`),
+          {
             headers: jsonHeaders(),
             data: {
-                filter: {
-                    errorHashCode,
-                },
+              filter: {
+                errorHashCode,
+              },
             },
-        });
-        await assertBadRequest(res, 'Request property [filter.errorHashCode] cannot be parsed');
+          },
+        );
+        assertStatusCode(res, 200);
+        const responseBody = await res.json();
+        await validateResponse(
+          {
+            path: '/incidents/statistics/process-instances-by-definition',
+            method: 'POST',
+            status: '200',
+          },
+          res,
+        );
+        expect(responseBody.page.totalItems).toBeGreaterThanOrEqual(1);
+        const matchingItem = responseBody.items.find(
+          (item: {processDefinitionId: string}) =>
+            item.processDefinitionId.includes(expectedProcessDefinitionId),
+        );
+        expect(matchingItem).toBeDefined();
+        expect(
+          matchingItem.activeInstancesWithErrorCount,
+        ).toBeGreaterThanOrEqual(2);
+      }).toPass(defaultAssertionOptions);
+    });
+  });
+
+  test('Get Process Instance Statistics By Definition - Unauthorized', async ({
+    request,
+  }) => {
+    let errorHashCode: string;
+
+    await test.step('Get process instance statistics by error to get errorHashCode', async () => {
+      const res = await request.post(
+        buildUrl(`/incidents/statistics/process-instances-by-error`),
+        {
+          headers: jsonHeaders(),
+        },
+      );
+      assertStatusCode(res, 200);
+      const responseBody = await res.json();
+      await validateResponse(
+        {
+          path: '/incidents/statistics/process-instances-by-error',
+          method: 'POST',
+          status: '200',
+        },
+        res,
+      );
+      expect(responseBody.page.totalItems).toBeGreaterThanOrEqual(1);
+      const item = responseBody.items[0];
+      errorHashCode = item.errorHashCode;
     });
 
-    test('Get Process Instance Statistics By Definition - Forbidden, empty response, 200 ', async ({request}) => {
-        await test.step('Get Process Instance Statistics By Definition with user that has Resource Authorization - Forbidden, empty result, 200', async () => {
-        const token = encode(
-            `${userWithResourcesAuthorizationToSendRequest.username}:${userWithResourcesAuthorizationToSendRequest.password}`,
-        );
-        const errorHashCode = 123456789;
-        const res = await request.post(buildUrl(`/incidents/statistics/process-instances-by-definition`), {
-            headers: jsonHeaders(token),
-            data: {
-                filter: {
-                    errorHashCode,
-                },
+    await test.step('Get process instance statistics by definition without authorization', async () => {
+      const res = await request.post(
+        buildUrl(`/incidents/statistics/process-instances-by-definition`),
+        {
+          headers: {},
+          data: {
+            filter: {
+              errorHashCode,
             },
-        });
+          },
+        },
+      );
+      await assertUnauthorizedRequest(res);
+    });
+  });
 
-        await assertStatusCode(res, 200);
-        const responseBody = await res.json();
-        await validateResponse({
+  test('Get Process Instance Statistics By Definition - Bad Request', async ({
+    request,
+  }) => {
+    const errorHashCode = 'meow';
+    const res = await request.post(
+      buildUrl(`/incidents/statistics/process-instances-by-definition`),
+      {
+        headers: jsonHeaders(),
+        data: {
+          filter: {
+            errorHashCode,
+          },
+        },
+      },
+    );
+    await assertBadRequest(
+      res,
+      'Request property [filter.errorHashCode] cannot be parsed',
+    );
+  });
+
+  test('Get Process Instance Statistics By Definition - Forbidden, empty response, 200', async ({
+    request,
+  }) => {
+    await test.step('Get Process Instance Statistics By Definition with user that has Resource Authorization - Forbidden, empty result, 200', async () => {
+      const token = encode(
+        `${userWithResourcesAuthorizationToSendRequest.username}:${userWithResourcesAuthorizationToSendRequest.password}`,
+      );
+      const errorHashCode = 123456789;
+      const res = await request.post(
+        buildUrl(`/incidents/statistics/process-instances-by-definition`),
+        {
+          headers: jsonHeaders(token),
+          data: {
+            filter: {
+              errorHashCode,
+            },
+          },
+        },
+      );
+
+      await assertStatusCode(res, 200);
+      const responseBody = await res.json();
+      await validateResponse(
+        {
           path: '/incidents/statistics/process-instances-by-definition',
           method: 'POST',
           status: '200',
-        }, res);
-        expect(responseBody.items.length).toBe(0);
-        expect(responseBody.page.hasMoreTotalItems).toBe(false);
-        expect(responseBody.page.totalItems).toBe(0);
+        },
+        res,
+      );
+      expect(responseBody.items.length).toBe(0);
+      expect(responseBody.page.hasMoreTotalItems).toBe(false);
+      expect(responseBody.page.totalItems).toBe(0);
     });
-    });
+  });
 });
