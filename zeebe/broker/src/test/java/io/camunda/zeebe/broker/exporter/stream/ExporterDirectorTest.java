@@ -41,7 +41,10 @@ import io.camunda.zeebe.protocol.record.intent.Intent;
 import io.camunda.zeebe.protocol.record.intent.JobIntent;
 import io.camunda.zeebe.stream.impl.SkipPositionsFilter;
 import io.camunda.zeebe.util.health.HealthStatus;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -838,6 +841,30 @@ public final class ExporterDirectorTest {
     // then the position will not be updated.
     assertThat(rule.getExportersState().getPosition(EXPORTER_ID_1)).isEqualTo(-1);
     assertThat(rule.getExportersState().getPosition(EXPORTER_ID_2)).isEqualTo(-1);
+  }
+
+  @Test
+  public void shouldReportZeroExportingLatencyWhenClockIsInThePast() {
+    // given — director clock is pinned to 1ms (epoch past), but records are written with the
+    // current system time, so their timestamp will always exceed the pinned clock value
+    final var meterRegistry = new SimpleMeterRegistry();
+    rule.withExporterDirectorContextConfigurator(
+        ctx -> ctx.meterRegistry(meterRegistry).clock(() -> Instant.ofEpochMilli(1L)));
+
+    startExporterDirector(exporterDescriptors);
+
+    // when — write a record whose timestamp comes from the ControlledActorClock (current time)
+    writeEvent();
+
+    // then — negative latency (1ms - current_timestamp) is clamped to 0
+    Awaitility.await("record has been exported")
+        .atMost(Duration.ofSeconds(5))
+        .untilAsserted(() -> assertThat(exporters.get(0).getExportedRecords()).hasSize(1));
+
+    final Timer timer =
+        meterRegistry.find(ExporterMetricsDoc.EXPORTING_LATENCY.getName()).timer();
+    assertThat(timer).isNotNull();
+    assertThat(timer.totalTime(TimeUnit.MILLISECONDS)).isZero();
   }
 
   private long writeEvent() {

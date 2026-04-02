@@ -40,7 +40,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.AutoClose;
 import org.junit.jupiter.api.BeforeEach;
@@ -184,43 +183,6 @@ final class CamundaExporterTest {
 
     @Override
     public void close() {}
-  }
-
-  @Nested
-  final class ExportLatencyTest {
-
-    private final ProtocolFactory protocolFactory = new ProtocolFactory();
-
-    @Test
-    void shouldRecordZeroExportLatencyWhenClockIsInThePast() {
-      // given — clock is at 1 000 ms, but the record carries a future timestamp of 5 000 ms
-      final long recordTimestamp = 5_000L;
-      final var clock = new MutableClock(1_000L);
-      testContext.setClock(clock);
-      configuration.getBulk().setSize(1); // flush immediately after every export
-      configuration.getBulk().setDelay(1);
-      exporter =
-          new CamundaExporter(
-              resourceProvider, new ExporterMetadata(TestObjectMapper.objectMapper()));
-      exporter.configure(testContext);
-      exporter.open(testController);
-
-      final var record =
-          protocolFactory.generateRecord(
-              ValueType.VARIABLE, b -> b.withTimestamp(recordTimestamp).withPosition(1L));
-
-      // when — export the record; clock (1 000 ms) is before record timestamp (5 000 ms)
-      exporter.export(record);
-
-      // then — negative latency is clamped to 0 by CamundaExporterMetrics
-      final var timer =
-          testContext
-              .getMeterRegistry()
-              .find("zeebe.camunda.exporter.record.export.duration")
-              .timer();
-      assertThat(timer).isNotNull();
-      assertThat(timer.totalTime(TimeUnit.MILLISECONDS)).isZero();
-    }
   }
 
   private static final class MutableClock implements InstantSource {
