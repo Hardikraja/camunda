@@ -396,7 +396,7 @@ public class Starter extends App {
 
   private void setupOptimizeEvaluationMeter() {
     LOG.info("Setting up Optimize report evaluation meter");
-    optimizeEvaluationMeter = new OptimizeEvaluationMeter(registry, config.getOptimize());
+    optimizeEvaluationMeter = new OptimizeEvaluationMeter(config.getOptimize());
   }
 
   public static void main(final String[] args) {
