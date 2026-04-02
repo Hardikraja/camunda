@@ -209,201 +209,22 @@ consuming Zeebe records and persisting them to the RDBMS via `RdbmsService`. In 
 `CamundaExporter`, the RDBMS Exporter is created via Spring, because it needs access to the Spring
 context to obtain the `RdbmsService` and the `DataSource`.
 
-The module is organised into the following packages under
-`io.camunda.exporter.rdbms`:
+The module is organised into the following packages under `io.camunda.exporter.rdbms`:
 
-```
-io.camunda.exporter.rdbms
-├── RdbmsExporterFactory      — ExporterFactory implementation; creates RdbmsExporterWrapper instances
-├── RdbmsExporterWrapper      — Implements the Zeebe Exporter SPI; wires configuration, caches,
-│                               handlers, and delegates records to RdbmsExporter
-├── RdbmsExporter             — Core exporter; routes records to registered handlers, manages
-│                               flush scheduling, history cleanup, and position tracking
-├── RdbmsExportHandler        — Handler interface (canExport / export)
-├── ExporterConfiguration     — Exporter configuration (flush interval, queue size, cache sizes,
-│                               audit log, history deletion)
-├── cache/
-│   ├── RdbmsProcessCacheLoader             — Caffeine CacheLoader that loads CachedProcessEntity
-│   │                                         from RDBMS on cache miss (used for call-activity IDs,
-│   │                                         flow node names, user-task flag)
-│   ├── RdbmsDecisionRequirementsCacheLoader — CacheLoader for decision requirements metadata
-│   └── RdbmsBatchOperationCacheLoader       — CacheLoader for batch operation metadata
-├── handlers/
-│   ├── AuditLogExportHandler               — Generic handler that wraps an AuditLogTransformer
-│   │                                         and writes an AuditLogDbModel for each matching record
-│   ├── ProcessInstanceExportHandler        — Handles ELEMENT_ACTIVATING / ELEMENT_COMPLETED /
-│   │                                         ELEMENT_TERMINATED / ELEMENT_MIGRATED for processes
-│   ├── FlowNodeExportHandler               — Handles flow node instance lifecycle records
-│   ├── VariableExportHandler               — Handles variable create/update records
-│   ├── UserTaskExportHandler               — Handles user task lifecycle records
-│   ├── IncidentExportHandler               — Handles incident create/resolve records
-│   ├── JobExportHandler                    — Handles job lifecycle records
-│   ├── ProcessExportHandler                — Handles process definition deployment records
-│   │                                         (partition 1 only)
-│   ├── DecisionDefinitionExportHandler     — Handles decision definition records (partition 1 only)
-│   ├── DecisionInstanceExportHandler       — Handles decision evaluation records
-│   ├── DecisionRequirementsExportHandler   — Handles DMN requirements records (partition 1 only)
-│   ├── FormExportHandler                   — Handles form deployment records (partition 1 only)
-│   ├── GroupExportHandler                  — Handles group lifecycle records
-│   ├── RoleExportHandler                   — Handles role lifecycle records (partition 1 only)
-│   ├── UserExportHandler                   — Handles user lifecycle records (partition 1 only)
-│   ├── TenantExportHandler                 — Handles tenant lifecycle records (partition 1 only)
-│   ├── MappingRuleExportHandler            — Handles mapping rule records (partition 1 only)
-│   ├── AuthorizationExportHandler          — Handles authorization records (partition 1 only)
-│   ├── MessageSubscriptionExportHandler    — Handles message subscription records
-│   ├── SequenceFlowExportHandler           — Handles sequence flow records
-│   ├── UsageMetricExportHandler            — Handles usage metric records
-│   ├── GlobalListenerExportHandler         — Handles global listener records
-│   ├── HistoryDeletionDeletedHandler       — Handles history deletion records
-│   ├── JobMetricsBatchExportHandler        — Handles job metrics batch records
-│   └── batchoperation/
-│       ├── BatchOperationCreatedExportHandler
-│       ├── BatchOperationInitializedExportHandler
-│       ├── BatchOperationChunkExportHandler
-│       ├── BatchOperationLifecycleManagementExportHandler
-│       ├── ProcessInstanceCancellationBatchOperationExportHandler
-│       ├── ProcessInstanceMigrationBatchOperationExportHandler
-│       ├── ProcessInstanceModificationBatchOperationExportHandler
-│       ├── ProcessInstanceHistoryDeletionBatchOperationExportHandler
-│       ├── DecisionInstanceHistoryDeletionBatchOperationExportHandler
-│       ├── IncidentBatchOperationExportHandler
-│       └── RdbmsBatchOperationStatusExportHandler
-└── utils/
-    ├── DateUtil                — Date/time conversion helpers
-    ├── ExportUtil              — General export utilities
-    └── TreePath                — Builds the hierarchical call-tree path string for process instances
-```
+- **Root package** — Core classes: `RdbmsExporterFactory`, `RdbmsExporterWrapper`, `RdbmsExporter`,
+  `RdbmsExportHandler` (interface), and `ExporterConfiguration`
+- **`cache/`** — Caffeine cache loaders that back the in-memory caches held by the exporter to
+  avoid repeated database lookups for frequently accessed metadata
+- **`handlers/`** — One `RdbmsExportHandler` implementation per Zeebe record type; the
+  `batchoperation/` sub-package contains handlers specific to batch operations
+- **`utils/`** — Shared utilities (`DateUtil`, `ExportUtil`, `TreePath`)
 
-##### Cache
+When `auditLog.enabled` is set to `true`, `RdbmsExporterWrapper` additionally registers an
+`AuditLogExportHandler` for each transformer provided by `AuditLogTransformerRegistry`, which
+writes an audit entry for every relevant record.
 
-The exporter maintains three in-memory Caffeine caches (backed by RDBMS readers as fallback
-loaders) to avoid repeated database lookups for frequently needed read-only data:
-
-| Cache | Key | Value | Purpose |
-|---|---|---|---|
-| `processCache` | process definition key (Long) | `CachedProcessEntity` | Resolves call-activity IDs and flow node names used by `ProcessInstanceExportHandler`, `FlowNodeExportHandler`, and `UserTaskExportHandler` |
-| `decisionRequirementsCache` | decision requirements key (Long) | `CachedDecisionRequirementsEntity` | Resolves decision requirements data used by `DecisionDefinitionExportHandler` |
-| `batchOperationCache` | batch operation key (String) | `CachedBatchOperationEntity` | Tracks batch operation type and status for batch operation handlers |
-
-Cache sizes are configurable via `ExporterConfiguration` (`processCache.maxSize`,
-`decisionRequirementsCache.maxSize`, `batchOperationCache.maxSize`). Cache hit/miss metrics are
-published under the `camunda.rdbms.exporter.cache` namespace.
-
-##### Audit Log
-
-When `auditLog.enabled` is set to `true` in the exporter configuration, the
-`RdbmsExporterWrapper` registers an `AuditLogExportHandler` for each `AuditLogTransformer`
-provided by `AuditLogTransformerRegistry`. The registry categorises transformers into two groups:
-
-- **All-partition transformers** — run on every broker partition; handle instance-level events
-  (process instance creation/cancellation, user task operations, variable changes, job events, etc.)
-- **Partition-specific transformers** — run only on partition 1 (`PROCESS_DEFINITION_PARTITION`);
-  handle definition and identity-level events (process/decision/form deployments, role/group/tenant
-  changes, authorizations, etc.)
-
-Each `AuditLogExportHandler` wraps one transformer and writes an `AuditLogDbModel` entry via
-`AuditLogWriter` for every record that the transformer supports.
-
-##### How to Add a New Export Handler
-
-Follow these steps to add support for a new Zeebe record type in the RDBMS exporter.
-
-**Step 1 — Implement `RdbmsExportHandler`**
-
-Create a new handler class in `zeebe/exporters/rdbms-exporter/src/main/java/io/camunda/exporter/rdbms/handlers/`:
-
-```java
-public class MyEntityExportHandler implements RdbmsExportHandler<MyEntityRecordValue> {
-
-  private static final Set<MyEntityIntent> EXPORTABLE_INTENTS =
-      Set.of(MyEntityIntent.CREATED, MyEntityIntent.UPDATED, MyEntityIntent.DELETED);
-
-  private final MyEntityWriter myEntityWriter;
-
-  public MyEntityExportHandler(final MyEntityWriter myEntityWriter) {
-    this.myEntityWriter = myEntityWriter;
-  }
-
-  @Override
-  public boolean canExport(final Record<MyEntityRecordValue> record) {
-    return record.getIntent() instanceof final MyEntityIntent intent
-        && EXPORTABLE_INTENTS.contains(intent);
-  }
-
-  @Override
-  public void export(final Record<MyEntityRecordValue> record) {
-    final MyEntityRecordValue value = record.getValue();
-    switch (record.getIntent()) {
-      case MyEntityIntent.CREATED -> myEntityWriter.create(map(value));
-      case MyEntityIntent.UPDATED -> myEntityWriter.update(map(value));
-      case MyEntityIntent.DELETED -> myEntityWriter.delete(value.getEntityId());
-      default -> LOG.warn("Unexpected intent {} for my entity record", record.getIntent());
-    }
-  }
-
-  private MyEntityDbModel map(final MyEntityRecordValue value) {
-    return new MyEntityDbModel.Builder()
-        .entityKey(value.getEntityKey())
-        .name(value.getName())
-        // ... other fields
-        .build();
-  }
-}
-```
-
-**Step 2 — Register the handler in `RdbmsExporterWrapper`**
-
-Add a `builder.withHandler(...)` call in the `createHandlers` method (or
-`createBatchOperationHandlers` for batch-operation-related handlers):
-
-```java
-builder.withHandler(
-    ValueType.MY_ENTITY,
-    new MyEntityExportHandler(rdbmsWriters.getMyEntityWriter()));
-```
-
-If the handler should only run on partition 1 (e.g. for definition-level data that is deployed once
-globally), place the `withHandler` call inside the `if (partitionId == PROCESS_DEFINITION_PARTITION)`
-block.
-
-**Step 3 — Add audit log support (optional)**
-
-If the new entity should generate audit log entries, create an `AuditLogTransformer` in
-`zeebe/exporter-common/src/main/java/io/camunda/zeebe/exporter/common/auditlog/transformers/`:
-
-```java
-public class MyEntityAuditLogTransformer implements AuditLogTransformer<MyEntityRecordValue> {
-
-  private static final TransformerConfig CONFIG =
-      TransformerConfig.with(ValueType.MY_ENTITY)
-          .withIntents(MyEntityIntent.CREATED, MyEntityIntent.UPDATED, MyEntityIntent.DELETED);
-
-  @Override
-  public TransformerConfig config() {
-    return CONFIG;
-  }
-
-  @Override
-  public void transform(final Record<MyEntityRecordValue> record, final AuditLogEntry log) {
-    final MyEntityRecordValue value = record.getValue();
-    log.setEntityKey(value.getEntityKey());
-    log.setEntityDescription(value.getName());
-    // set any additional audit log fields as needed
-  }
-}
-```
-
-Then register the transformer in `AuditLogTransformerRegistry`. Add a supplier to
-`getSourcePartitionTransformerSuppliers()` for definition-level entities, or to
-`getAllPartitionTransformerSuppliers()` for instance-level entities:
-
-```java
-// In AuditLogTransformerRegistry.getSourcePartitionTransformerSuppliers():
-MyEntityAuditLogTransformer::new,
-```
-
-No further changes are needed — `RdbmsExporterWrapper.registerAuditLogHandlers()` automatically
-creates an `AuditLogExportHandler` for every transformer returned by the registry.
+For a step-by-step guide on adding a new export handler, see the
+[developer guide](./developer-guide.md#adding-a-new-export-handler).
 
 #### 5.2.2 Component RdbmsService
 
