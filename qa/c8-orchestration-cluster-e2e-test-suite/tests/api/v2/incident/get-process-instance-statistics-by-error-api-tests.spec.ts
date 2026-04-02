@@ -14,23 +14,46 @@ import {
   assertStatusCode,
   assertUnauthorizedRequest,
   buildUrl,
+  encode,
   jsonHeaders,
 } from '../../../../utils/http';
 import {defaultAssertionOptions} from '../../../../utils/constants';
 import {validateResponse} from '../../../../json-body-assertions';
-import {createTwoDifferentIncidentsInOneProcess, verifyIncidentsForProcessInstance} from '@requestHelpers';
+import {createTwoDifferentIncidentsInOneProcess, createUser, grantUserResourceAuthorization, verifyIncidentsForProcessInstance} from '@requestHelpers';
+import { request } from 'node_modules/axios/index.cjs';
+import { cleanupUsers } from 'utils/usersCleanup';
 
 test.describe('Get Process Instance Statistics By Error API Tests', () => {
+  let userWithResourcesAuthorizationToSendRequest: {
+      username: string;
+      name: string;
+      email: string;
+      password: string;
+    } = {} as {
+      username: string;
+      name: string;
+      email: string;
+      password: string;
+    };
     const processInstanceKeys: string[] = [];
     const errorMessage = 'Expected result of the expression \'goUp < 0\' to be \'BOOLEAN\', but was \'NULL\'. The evaluation reported the following warnings:\n[NO_VARIABLE_FOUND] No variable found with name \'goUp\'\n[NOT_COMPARABLE] Can\'t compare \'null\' with \'0\'';
     test.beforeAll(async ({request}) => {
         await deploy([
             './resources/processWithAnError.bpmn',
             './resources/MultipleErrorTypesProcess.bpmn',
+            './resources/singleIncidentProcess.bpmn',
         ]);
+
+        await test.step('Setup - Create test user with Resource Authorization and user for granting Authorization', async () => {
+              userWithResourcesAuthorizationToSendRequest = await createUser(request);
+              await grantUserResourceAuthorization(
+                request,
+                userWithResourcesAuthorizationToSendRequest,
+              );
+            });
     });
 
-    test.afterAll(async () => {
+    test.afterAll(async ({request}) => {
     for (const processInstanceKey of processInstanceKeys) {
       try {
         await cancelProcessInstance(processInstanceKey);
@@ -40,6 +63,12 @@ test.describe('Get Process Instance Statistics By Error API Tests', () => {
         );
       }
     }
+
+    await test.step('Cleanup - Delete test users', async () => {
+          await cleanupUsers(request, [
+            userWithResourcesAuthorizationToSendRequest.username,
+          ]);
+        });
   });
 
   test('Get Statistics For Process Instances with errors - Success', async ({request}) => {
@@ -152,4 +181,56 @@ test.describe('Get Process Instance Statistics By Error API Tests', () => {
     }).toPass(defaultAssertionOptions);
   });
 
+  test('Get Process Instance Statistics By Error with non-numeric page limit - Bad Request', async ({
+    request,
+  }) => {
+    const invalidSortField = 'invalid';
+    const res = await request.post(buildUrl(`/incidents/statistics/process-instances-by-error`), {
+      headers: jsonHeaders(),
+      data: {
+        "sort": [
+            {
+                "field": invalidSortField,
+                "order": "ASC"
+            }
+        ]
+      },
+    });
+    await assertBadRequest(
+      res,
+      `Unexpected value '${invalidSortField}' for enum field 'field'.`,
+    );
+  });
+
+  test('Get Process Instance Statistics By Error - Unauthorized', async ({request}) => {
+    const res = await request.post(buildUrl(`/incidents/statistics/process-instances-by-error`), {
+      headers: {},
+      data: {},
+    });
+
+    await assertUnauthorizedRequest(res);
+  });
+
+  test('Get Process Instance Statistics By Error - Forbidden', async ({request}) => {
+    await test.step('Get Process Instance Statistics By Error with user that has Resource Authorization - Forbidden, empty result, 200', async () => {
+        const token = encode(
+            `${userWithResourcesAuthorizationToSendRequest.username}:${userWithResourcesAuthorizationToSendRequest.password}`,
+        );
+        const res = await request.post(buildUrl(`/incidents/statistics/process-instances-by-error`), {
+            headers: jsonHeaders(token),
+            data: {},
+        });
+
+        await assertStatusCode(res, 200);
+        const responseBody = await res.json();
+        await validateResponse({
+          path: '/incidents/statistics/process-instances-by-error',
+          method: 'POST',
+          status: '200',
+        }, res);
+        expect(responseBody.items.length).toBe(0);
+        expect(responseBody.page.hasMoreTotalItems).toBe(false);
+        expect(responseBody.page.totalItems).toBe(0);
+    });
+  });
 });
