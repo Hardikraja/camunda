@@ -20,8 +20,8 @@ import {
 import {defaultAssertionOptions} from '../../../../utils/constants';
 import {validateResponse} from '../../../../json-body-assertions';
 import {createTwoDifferentIncidentsInOneProcess, createUser, grantUserResourceAuthorization, verifyIncidentsForProcessInstance} from '@requestHelpers';
-import { request } from 'node_modules/axios/index.cjs';
 import { cleanupUsers } from 'utils/usersCleanup';
+import { sleep } from 'utils/sleep';
 
 test.describe('Get Process Instance Statistics By Error API Tests', () => {
   let userWithResourcesAuthorizationToSendRequest: {
@@ -36,7 +36,6 @@ test.describe('Get Process Instance Statistics By Error API Tests', () => {
       password: string;
     };
     const processInstanceKeys: string[] = [];
-    const errorMessage = 'Expected result of the expression \'goUp < 0\' to be \'BOOLEAN\', but was \'NULL\'. The evaluation reported the following warnings:\n[NO_VARIABLE_FOUND] No variable found with name \'goUp\'\n[NOT_COMPARABLE] Can\'t compare \'null\' with \'0\'';
     test.beforeAll(async ({request}) => {
         await deploy([
             './resources/processWithAnError.bpmn',
@@ -72,6 +71,7 @@ test.describe('Get Process Instance Statistics By Error API Tests', () => {
   });
 
   test('Get Statistics For Process Instances with errors - Success', async ({request}) => {
+    const errorMessage = 'Expected result of the expression \'goUp < 0\' to be \'BOOLEAN\', but was \'NULL\'. The evaluation reported the following warnings:\n[NO_VARIABLE_FOUND] No variable found with name \'goUp\'\n[NOT_COMPARABLE] Can\'t compare \'null\' with \'0\'';
     let processInstanceKeyToSearch: string;
     await test.step('Start a process instance that will throw an error', async () => {
         const instance = await createSingleInstance('singleIncidentProcess', 1);
@@ -87,6 +87,7 @@ test.describe('Get Process Instance Statistics By Error API Tests', () => {
             processInstanceKeyToSearch,
             1,
         );
+        await sleep(2000);
     });
 
     await test.step('Get process instance statistics by error', async () => {
