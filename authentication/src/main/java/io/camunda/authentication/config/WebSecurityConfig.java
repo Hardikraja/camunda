@@ -174,7 +174,6 @@ public class WebSecurityConfig {
       Set.of(
           "/login/**",
           "/logout",
-          "/identity/**",
           "/admin/**",
           "/operate/**",
           "/tasklist/**",
