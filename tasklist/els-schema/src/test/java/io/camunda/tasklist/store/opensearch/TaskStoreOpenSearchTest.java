@@ -122,10 +122,114 @@ public class TaskStoreOpenSearchTest {
     assertThat(result).hasSize(1);
   }
 
+  @Test
+  void shouldReturnPreviousPageInClientOrderWhenSearchingBefore() throws Exception {
+    // Given
+    final TaskQuery taskQuery =
+        new TaskQuery()
+            .setPageSize(2)
+            .setState(TaskState.CREATED)
+            .setSearchBefore(new String[] {"2000", "3"});
+    final SearchResponse pagedResponse =
+        mockSearchResponse(
+            getTaskEntity(TaskState.CREATED, 1L),
+            getTaskEntity(TaskState.CREATED, 2L),
+            getTaskEntity(TaskState.CREATED, 3L));
+
+    when(tenantAwareClient.search(any(), eq(TaskEntity.class))).thenReturn(pagedResponse);
+
+    // When
+    final List<TaskSearchView> result = instance.getTasks(taskQuery);
+
+    // Then
+    assertThat(result).extracting(TaskSearchView::getId).containsExactly("2", "1");
+  }
+
+  @Test
+  void shouldKeepBoundaryTaskAtBeginningWhenSearchingAfterOrEqual() throws Exception {
+    // Given
+    final TaskQuery taskQuery =
+        new TaskQuery()
+            .setPageSize(2)
+            .setState(TaskState.CREATED)
+            .setSearchAfterOrEqual(new String[] {"1000", "10"});
+    final SearchResponse pagedResponse =
+        mockSearchResponse(
+            getTaskEntity(TaskState.CREATED, 1L), getTaskEntity(TaskState.CREATED, 2L));
+    final SearchResponse boundaryResponse =
+        mockSearchResponse(getTaskEntity(TaskState.CREATED, 10L));
+    final SearchResponse firstCheckResponse =
+        mockSearchResponse(getTaskEntity(TaskState.CREATED, 10L));
+
+    when(tenantAwareClient.search(any(), eq(TaskEntity.class)))
+        .thenReturn(pagedResponse, boundaryResponse, firstCheckResponse);
+
+    // When
+    final List<TaskSearchView> result = instance.getTasks(taskQuery);
+
+    // Then
+    assertThat(result).extracting(TaskSearchView::getId).containsExactly("10", "1");
+    assertThat(result.get(0).isFirst()).isTrue();
+  }
+
+  @Test
+  void shouldKeepBoundaryTaskAtEndWhenSearchingBeforeOrEqual() throws Exception {
+    // Given
+    final TaskQuery taskQuery =
+        new TaskQuery()
+            .setPageSize(2)
+            .setState(TaskState.CREATED)
+            .setSearchBeforeOrEqual(new String[] {"1000", "10"});
+    final SearchResponse pagedResponse =
+        mockSearchResponse(
+            getTaskEntity(TaskState.CREATED, 1L),
+            getTaskEntity(TaskState.CREATED, 2L),
+            getTaskEntity(TaskState.CREATED, 3L));
+    final SearchResponse boundaryResponse =
+        mockSearchResponse(getTaskEntity(TaskState.CREATED, 10L));
+
+    when(tenantAwareClient.search(any(), eq(TaskEntity.class)))
+        .thenReturn(pagedResponse, boundaryResponse);
+
+    // When
+    final List<TaskSearchView> result = instance.getTasks(taskQuery);
+
+    // Then
+    assertThat(result).extracting(TaskSearchView::getId).containsExactly("1", "10");
+  }
+
+  private SearchResponse mockSearchResponse(final TaskEntity... taskEntities) {
+    final SearchResponse mockedResponse = mock();
+    final HitsMetadata mockedHits = mock();
+    final List<Hit> hits = List.of(taskEntities).stream().map(this::mockHit).toList();
+
+    when(mockedResponse.hits()).thenReturn(mockedHits);
+    when(mockedHits.hits()).thenReturn(hits);
+
+    return mockedResponse;
+  }
+
+  private Hit mockHit(final TaskEntity taskEntity) {
+    final Hit mockedHit = mock();
+
+    when(mockedHit.source()).thenReturn(taskEntity);
+    when(mockedHit.sort())
+        .thenReturn(
+            List.of(
+                org.opensearch.client.opensearch._types.FieldValue.of(
+                    String.valueOf(taskEntity.getKey()))));
+
+    return mockedHit;
+  }
+
   private static TaskEntity getTaskEntity(final TaskState taskState) {
+    return getTaskEntity(taskState, 123456789L);
+  }
+
+  private static TaskEntity getTaskEntity(final TaskState taskState, final long key) {
     final TaskEntity taskEntity = new TaskEntity();
-    taskEntity.setId("123456789");
-    taskEntity.setKey(123456789L);
+    taskEntity.setId(String.valueOf(key));
+    taskEntity.setKey(key);
     taskEntity.setPartitionId(2);
     taskEntity.setBpmnProcessId("bigFormProcess");
     taskEntity.setProcessDefinitionId("00000000000");

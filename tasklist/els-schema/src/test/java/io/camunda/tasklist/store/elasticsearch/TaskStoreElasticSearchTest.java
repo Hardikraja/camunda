@@ -17,6 +17,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.FieldValue;
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch.core.SearchRequest;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
@@ -119,6 +120,85 @@ class TaskStoreElasticSearchTest {
     assertThat(result).hasSize(1);
   }
 
+  @Test
+  void shouldReturnPreviousPageInClientOrderWhenSearchingBefore() throws Exception {
+    // Given
+    final TaskQuery taskQuery =
+        new TaskQuery()
+            .setPageSize(2)
+            .setState(TaskState.CREATED)
+            .setSearchBefore(new String[] {"2000", "3"});
+    final SearchResponse<TaskEntity> pagedResponse =
+        mockSearchResponse(
+            createTaskEntity(TaskState.CREATED, 1L),
+            createTaskEntity(TaskState.CREATED, 2L),
+            createTaskEntity(TaskState.CREATED, 3L));
+
+    when(tenantHelper.makeQueryTenantAware(any(Query.class))).thenAnswer(i -> i.getArgument(0));
+    when(esClient.search(any(SearchRequest.class), eq(TaskEntity.class))).thenReturn(pagedResponse);
+
+    // When
+    final List<TaskSearchView> result = instance.getTasks(taskQuery);
+
+    // Then
+    assertThat(result).extracting(TaskSearchView::getId).containsExactly("2", "1");
+  }
+
+  @Test
+  void shouldKeepBoundaryTaskAtBeginningWhenSearchingAfterOrEqual() throws Exception {
+    // Given
+    final TaskQuery taskQuery =
+        new TaskQuery()
+            .setPageSize(2)
+            .setState(TaskState.CREATED)
+            .setSearchAfterOrEqual(new String[] {"1000", "10"});
+    final SearchResponse<TaskEntity> pagedResponse =
+        mockSearchResponse(
+            createTaskEntity(TaskState.CREATED, 1L), createTaskEntity(TaskState.CREATED, 2L));
+    final SearchResponse<TaskEntity> boundaryResponse =
+        mockSearchResponse(createTaskEntity(TaskState.CREATED, 10L));
+    final SearchResponse<TaskEntity> firstCheckResponse =
+        mockSearchResponse(createTaskEntity(TaskState.CREATED, 10L));
+
+    when(tenantHelper.makeQueryTenantAware(any(Query.class))).thenAnswer(i -> i.getArgument(0));
+    when(esClient.search(any(SearchRequest.class), eq(TaskEntity.class)))
+        .thenReturn(pagedResponse, boundaryResponse, firstCheckResponse);
+
+    // When
+    final List<TaskSearchView> result = instance.getTasks(taskQuery);
+
+    // Then
+    assertThat(result).extracting(TaskSearchView::getId).containsExactly("10", "1");
+    assertThat(result.get(0).isFirst()).isTrue();
+  }
+
+  @Test
+  void shouldKeepBoundaryTaskAtEndWhenSearchingBeforeOrEqual() throws Exception {
+    // Given
+    final TaskQuery taskQuery =
+        new TaskQuery()
+            .setPageSize(2)
+            .setState(TaskState.CREATED)
+            .setSearchBeforeOrEqual(new String[] {"1000", "10"});
+    final SearchResponse<TaskEntity> pagedResponse =
+        mockSearchResponse(
+            createTaskEntity(TaskState.CREATED, 1L),
+            createTaskEntity(TaskState.CREATED, 2L),
+            createTaskEntity(TaskState.CREATED, 3L));
+    final SearchResponse<TaskEntity> boundaryResponse =
+        mockSearchResponse(createTaskEntity(TaskState.CREATED, 10L));
+
+    when(tenantHelper.makeQueryTenantAware(any(Query.class))).thenAnswer(i -> i.getArgument(0));
+    when(esClient.search(any(SearchRequest.class), eq(TaskEntity.class)))
+        .thenReturn(pagedResponse, boundaryResponse);
+
+    // When
+    final List<TaskSearchView> result = instance.getTasks(taskQuery);
+
+    // Then
+    assertThat(result).extracting(TaskSearchView::getId).containsExactly("1", "10");
+  }
+
   @SuppressWarnings("unchecked")
   private SearchResponse<TaskEntity> mockSearchResponse(final TaskState taskState) {
     final SearchResponse<TaskEntity> mockedResponse = mock(SearchResponse.class);
@@ -133,10 +213,36 @@ class TaskStoreElasticSearchTest {
     return mockedResponse;
   }
 
+  @SuppressWarnings("unchecked")
+  private SearchResponse<TaskEntity> mockSearchResponse(final TaskEntity... taskEntities) {
+    final SearchResponse<TaskEntity> mockedResponse = mock(SearchResponse.class);
+    final HitsMetadata<TaskEntity> mockedHits = mock(HitsMetadata.class);
+    final List<Hit<TaskEntity>> hits = List.of(taskEntities).stream().map(this::mockHit).toList();
+
+    when(mockedResponse.hits()).thenReturn(mockedHits);
+    when(mockedHits.hits()).thenReturn(hits);
+
+    return mockedResponse;
+  }
+
+  @SuppressWarnings("unchecked")
+  private Hit<TaskEntity> mockHit(final TaskEntity taskEntity) {
+    final Hit<TaskEntity> mockedHit = mock(Hit.class);
+
+    when(mockedHit.source()).thenReturn(taskEntity);
+    when(mockedHit.sort()).thenReturn(List.of(FieldValue.of(String.valueOf(taskEntity.getKey()))));
+
+    return mockedHit;
+  }
+
   private TaskEntity createTaskEntity(final TaskState taskState) {
+    return createTaskEntity(taskState, 123456789L);
+  }
+
+  private TaskEntity createTaskEntity(final TaskState taskState, final long key) {
     final TaskEntity entity = new TaskEntity();
-    entity.setId("123456789");
-    entity.setKey(123456789L);
+    entity.setId(String.valueOf(key));
+    entity.setKey(key);
     entity.setPartitionId(2);
     entity.setBpmnProcessId("bigFormProcess");
     entity.setProcessDefinitionId("00000000000");
