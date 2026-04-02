@@ -864,6 +864,11 @@ public final class ExporterDirectorTest {
     final Timer timer =
         meterRegistry.find(ExporterMetricsDoc.EXPORTING_LATENCY.getName()).timer();
     assertThat(timer).isNotNull();
+    // With the fix in place, Math.max(0, negative_latency) = 0, which Micrometer records
+    // (0 >= 0 is accepted). Without the fix, the raw negative value would be passed to
+    // Timer.record(), which Micrometer silently ignores, leaving count at 0. Asserting
+    // count == 1 distinguishes the two cases.
+    assertThat(timer.count()).isEqualTo(1);
     assertThat(timer.totalTime(TimeUnit.MILLISECONDS)).isZero();
   }
 
