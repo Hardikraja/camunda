@@ -18,7 +18,7 @@ import {
 } from '../../../../utils/http';
 import {defaultAssertionOptions} from '../../../../utils/constants';
 import {validateResponse} from '../../../../json-body-assertions';
-import {createSingleIncidentProcessInstance, verifyIncidentsForProcessInstance} from '@requestHelpers';
+import {createTwoDifferentIncidentsInOneProcess, verifyIncidentsForProcessInstance} from '@requestHelpers';
 
 test.describe('Get Process Instance Statistics By Error API Tests', () => {
     const processInstanceKeys: string[] = [];
@@ -26,6 +26,7 @@ test.describe('Get Process Instance Statistics By Error API Tests', () => {
     test.beforeAll(async ({request}) => {
         await deploy([
             './resources/processWithAnError.bpmn',
+            './resources/MultipleErrorTypesProcess.bpmn',
         ]);
     });
 
@@ -80,10 +81,14 @@ test.describe('Get Process Instance Statistics By Error API Tests', () => {
     });
   });
 
-  //TODO: add more process instances and verify sorting behaviour
   test('Get Process Instance Statistics By Error sort ASC by error message', async ({request}) => {
     let processInstanceKeyToSearch: string;
-    await test.step('Start a process instance that will throw an error', async () => {
+
+    await test.step('Start a process instance that will have an incident', async () => {
+        const localState: Record<string, unknown> = {};
+        await createTwoDifferentIncidentsInOneProcess(localState, request);
+        processInstanceKeys.push(localState['processInstanceKey'] as string);
+
         const instance = await createSingleInstance('singleIncidentProcess', 1);
         processInstanceKeyToSearch =
             instance.processInstanceKey as string;
@@ -100,29 +105,30 @@ test.describe('Get Process Instance Statistics By Error API Tests', () => {
     });
     
     await test.step('Get process instance statistics by error sorted ASC by error message', async () => {
-        const res = await request.post(buildUrl(`/incidents/statistics/process-instances-by-error`), {
-      headers: jsonHeaders(),
-      data: {
-        "sort": [
-            {
-                "field": "errorMessage",
-                "order": "ASC"
-            }
-        ]
-      },
-    });
-    assertStatusCode(res, 200);
-    const responseBody = await res.json();
-    await validateResponse({
-        path: '/incidents/statistics/process-instances-by-error',
-        method: 'POST',
-        status: '200',
-    }, res);
-    const responseItems = responseBody.items;
-    const sortedItems = [...responseItems].sort((a, b) => a.errorMessage.localeCompare(b.errorMessage));
-    console.log('Sorted items:', sortedItems);
-    // expect(responseItems).toEqual(sortedItems);
-    });
+      const res = await request.post(buildUrl(`/incidents/statistics/process-instances-by-error`), {
+        headers: jsonHeaders(),
+        data: {
+          "sort": [
+              {
+                  "field": "activeInstancesWithErrorCount",
+                  "order": "ASC"
+              }
+          ]
+        },
+      });
+      assertStatusCode(res, 200);
+      const responseBody = await res.json();
+      await validateResponse({
+          path: '/incidents/statistics/process-instances-by-error',
+          method: 'POST',
+          status: '200',
+      }, res);
+      const responseItems = responseBody.items;
+      const sortedItems = [...responseItems].sort((a, b) => a.activeInstancesWithErrorCount - b.activeInstancesWithErrorCount);
+      console.log('Sorted items:', sortedItems);
+      console.log('Response items:', responseItems);
+      expect(responseItems).toEqual(sortedItems);
+      });
   });
 
   test('Get Process Instance Statistics By Error with negative page limit - Bad Request', async ({
