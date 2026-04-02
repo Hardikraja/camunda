@@ -1,0 +1,33 @@
+name: Summarize job inputs
+description: Provide the inputs as a summary of the job.
+inputs:
+  title:
+    description: The title of the summary
+    required: true
+  description:
+    description: The description of the summary
+    required: true
+  job-inputs:
+    description: The inputs of the job, formatted as a JSON string
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Show summary
+      env:
+        INPUTS: ${{ inputs.job-inputs }}
+        TITLE: ${{ inputs.title }}
+        DESCRIPTION: ${{ inputs.description }}
+      shell: bash
+      run: |
+        cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+        # ${TITLE}
+
+        ${DESCRIPTION}
+
+        \`\`\`json
+        $(jq --sort-keys <<< "${INPUTS}")
+        \`\`\`
+        EOF
+

@@ -176,6 +176,22 @@ defaults:
     shell: bash
 
 jobs:
+  show-summary:
+    name: Show Summary
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Show summary
+        uses: ./.github/actions/job-inputs-summary
+        with:
+          title: Load test configuration
+          description: "A load test was created with the following inputs:"
+          job-inputs: ${{ toJSON(inputs) }}
+
   calculate-image-tag:
     name: Calculate Image Tag
     runs-on: ubuntu-latest
